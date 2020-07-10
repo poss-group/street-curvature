@@ -62,8 +62,8 @@ def mercator(coordinates):
         The Mercator coordinates of M points, in the order
         [x, y]
     """
-    longitudes = coordinates[:,0]
-    latitudes = coordinates[:,1]
+    longitudes = coordinates.T[0]
+    latitudes = coordinates.T[1]
     x = longitudes * (np.pi/180)
     y = np.log(np.tan(np.pi/4 + latitudes*(np.pi/360)))
 
@@ -85,8 +85,8 @@ def geographical_to_spherical(coordinates):
         The spherical coordinates of M points, in the order
         [theta, phi], in radians
     """
-    longitudes = coordinates[:,0]
-    latitudes = coordinates[:,1]
+    longitudes = coordinates.T[0]
+    latitudes = coordinates.T[1]
     theta = (90-latitudes) * (np.pi/180)
     phi = longitudes * (np.pi/180)
 
@@ -108,8 +108,8 @@ def spherical_to_geographical(coordinates):
         the geographical coordinates of M points, in the order
         [longitude, latitude], in degrees
     """
-    theta = coordinates[:0]
-    phi = coordinates[:1]
+    theta = coordinates.T[0]
+    phi = coordinates.T[1]
     longitudes = phi * (180/np.pi)
     latitudes = (np.pi/2-theta) * (180/np.pi)
 
@@ -135,8 +135,8 @@ def rotate_to_geolocation(location, coordinates):
         [longitude, latitude], in degrees
     """
     location_spherical = geographical_to_spherical(location)
-    theta = coordinates[:0]
-    phi = coordinates[:1]
+    theta = coordinates.T[0]
+    phi = coordinates.T[1]
     # transform into qubit
     psi_0 = np.cos(theta/2)
     psi_1 = np.exp(1j*phi) * np.sin(theta/2)
@@ -184,7 +184,6 @@ def construct_polygon(N, R, location, offset=0):
     M = np.floor(((offset+np.pi)*N) / (2*np.pi))
     phi = 2*np.pi*(np.arange(N)/N) + offset - 2*np.pi*(M/N)
     coordinates = np.array([theta*np.ones(N), phi]).T
-    theta, phi = rotate_to_coordinates(theta*np.ones(N),phi,A[1],A[0])
 
     return rotate_to_geolocation(location, coordinates)
 
