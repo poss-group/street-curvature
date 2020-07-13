@@ -57,10 +57,10 @@ for i in selection:
     plt.figure()
     plt.xlabel(r"Offset in rad")
     plt.ylabel(r"Angular defect in rad")
-    plt.title("R = {}".format(R[i]))
+    plt.title("R = {:f}".format(R[i]))
     for j, n in enumerate(N):
         plt.plot(offset, defects[j,i,:], label="N = {}".format(n))
     plt.legend()
-    plt.savefig("offset_R={}.pdf".format(R[i]))
+    plt.savefig("offset_R={:f}.pdf".format(R[i]))
 
 plt.close("all")

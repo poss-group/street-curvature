@@ -216,7 +216,7 @@ def get_triplength(A,B,router,dimension='duration'):
     if dimension is 'distance': # trip length in km
         return response['routes'][0]['legs'][0]['duration']/1000
 
-def measure_polygon(A, B, router, dimension='duration'):
+def measure_polygon(A, B, router, dimension='duration', meanR=False):
     """
     Measure angles and areas of the street network polygon.
 
@@ -233,6 +233,8 @@ def measure_polygon(A, B, router, dimension='duration'):
     dimension : {'duration', 'distance'}, optional
         The dimension of used triplengths. If 'duration',
         the unit is minutes, if 'distance', the unit is kilometers.
+    meanR : bool, optional
+        If True, return the mean circumradius.
 
     Returns
     -------
@@ -240,6 +242,8 @@ def measure_polygon(A, B, router, dimension='duration'):
         The angles at A
     ndarray
         The areas of the subtriangles
+    Float
+        Present only when meanR = True. The average circumradius of the polygon.
     """
     N = B.shape[0]
     d = np.zeros(N)
@@ -256,7 +260,10 @@ def measure_polygon(A, B, router, dimension='duration'):
     areas[mask1] = 0
     areas[mask2] = 0
 
-    return angles, areas
+    if meanR:
+        return angles, areas, np.average(c)
+    else:
+        return angles, areas
 
 def asymmetry_parameter(angles):
     """
