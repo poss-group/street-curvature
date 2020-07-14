@@ -5,7 +5,7 @@ import osrm
 
 from utils import construct_polygon, measure_polygon
 
-if len(sys.argv) != 9:
+if len(sys.argv) != 10:
     print("ERROR: Wrong number of arguments.")
     print("Usage: python polygon.py longitude latitude Nmax Rmin Rmax Rvalues offset_values store_path dimension")
 else:
@@ -40,8 +40,8 @@ else:
             for j, alpha in enumerate(offset):
                 B = construct_polygon(n, r, A, offset=alpha)
                 angles, areas, meanR = measure_polygon(A, B, client,
-                                                dimension=dimension,
-                                                meanR=True)
+                                                       dimension=dimension,
+                                                       meanR=True)
                 mean_R[k][i][j] = meanR
                 defects[k][i][j] = 2*np.pi - np.sum(angles)
                 area_simple[k][i][j] = np.sum(areas) / 3

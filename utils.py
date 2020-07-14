@@ -211,9 +211,9 @@ def get_triplength(A, B, router, dimension='duration'):
         The triplength
     """
     response = router.route(coordinates=np.array([A,B]))
-    if dimension is 'duration': # trip length in minutes
+    if dimension == "duration": # trip length in minutes
         return response['routes'][0]['legs'][0]['duration']/60
-    if dimension is 'distance': # trip length in km
+    if dimension == 'distance': # trip length in km
         return response['routes'][0]['legs'][0]['distance']/1000
 
 def measure_polygon(A, B, router, dimension='duration', meanR=False):

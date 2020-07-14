@@ -9,6 +9,7 @@ offset = np.load("offset.npy")
 defects = np.load("defects.npy")
 area_simple = np.load("area_simple.npy")
 area_weighted = np.load("area_weighted.npy")
+mean_R = np.load("mean_R.npy")
 
 # defect and curvatures
 plt.figure()
