@@ -7,7 +7,7 @@ from utils import construct_polygon, measure_polygon
 
 if len(sys.argv) != 9:
     print("ERROR: Wrong number of arguments.")
-    print("Usage: python polygon.py longitude latitude Nmax Rmin Rmax Rvalues offset_values store_path")
+    print("Usage: python polygon.py longitude latitude Nmax Rmin Rmax Rvalues offset_values store_path dimension")
 else:
     client = osrm.Client(host='http://134.76.24.136/osrm')
 
@@ -19,6 +19,7 @@ else:
     Rvalues = int(sys.argv[6])
     offset_values = int(sys.argv[7])
     store_path = str(sys.argv[8])
+    dimension = str(sys.argv[9])
 
     # parameters
     N = np.arange(3, Nmax+1)
@@ -29,6 +30,7 @@ else:
     defects = np.zeros((N.size, R.size, offset.size))
     area_simple = np.zeros((N.size, R.size, offset.size))
     area_weighted = np.zeros((N.size, R.size, offset.size))
+    mean_R = np.zeros((N.size, R.size, offset.size))
 
     # calculation
     Npolygons = N.size * R.size * offset.size
@@ -37,7 +39,10 @@ else:
         for i, r in enumerate(R):
             for j, alpha in enumerate(offset):
                 B = construct_polygon(n, r, A, offset=alpha)
-                angles, areas = measure_polygon(A, B, client)
+                angles, areas, meanR = measure_polygon(A, B, client,
+                                                dimension=dimension,
+                                                meanR=True)
+                mean_R[k][i][j] = meanR
                 defects[k][i][j] = 2*np.pi - np.sum(angles)
                 area_simple[k][i][j] = np.sum(areas) / 3
                 area_weighted[k][i][j] = np.sum(areas*angles) / np.sum(angles)
@@ -52,6 +57,7 @@ else:
     np.save(store_path+"/defects.npy", defects)
     np.save(store_path+"/area_simple.npy", area_simple)
     np.save(store_path+"/area_weighted.npy", area_weighted)
+    np.save(store_path+"/meanR.npy", mean_R)
     np.save(store_path+"/N.npy", N)
     np.save(store_path+"/R.npy", R)
     np.save(store_path+"/offset.npy", offset)
@@ -62,3 +68,5 @@ else:
     logfile.write("Edges: "+str(N)+"\n")
     logfile.write("Polygon circumradii: {} values from {} to {}\n".format(Rvalues, Rmin, Rmax))
     logfile.write("{} offset values each.\n".format(offset_values))
+    logfile.write("Dimension used: {}\n".format(dimension))
+    logfile.close()

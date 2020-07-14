@@ -187,7 +187,7 @@ def construct_polygon(N, R, location, offset=0):
 
     return rotate_to_geolocation(location, coordinates)
 
-def get_triplength(A,B,router,dimension='duration'):
+def get_triplength(A, B, router, dimension='duration'):
     """
     Return the triplength between A and B obtained with OSRM.
 
@@ -214,7 +214,7 @@ def get_triplength(A,B,router,dimension='duration'):
     if dimension is 'duration': # trip length in minutes
         return response['routes'][0]['legs'][0]['duration']/60
     if dimension is 'distance': # trip length in km
-        return response['routes'][0]['legs'][0]['duration']/1000
+        return response['routes'][0]['legs'][0]['distance']/1000
 
 def measure_polygon(A, B, router, dimension='duration', meanR=False):
     """
@@ -283,3 +283,41 @@ def asymmetry_parameter(angles):
     dot = np.dot(D,angles) / (np.linalg.norm(D)*np.linalg.norm(angles))
 
     return np.sqrt(1 - dot**2)
+
+def orthodromic_distance(long1, lat1, long2, lat2, R):
+    """
+    Calculate the element-wise shortest distance on a sphere.
+
+    Parameters
+    ----------
+    long1 : array
+        The longitudes of the first set of points, in degrees
+    lat1 : array
+        The latitudes of the first set of points, in degrees
+    long2 : array
+        The longitudes of the second set of points, in degrees
+    lat2 : array
+        The latitudes of the second set of points, in degrees
+    R : float
+        The radius of the sphere, in kilometers
+
+    Returns
+    -------
+    ndarray
+        The orthodromic distance, in kilometers
+    """
+    # convert to radians
+    long1_rad = long1 * (np.pi/180)
+    lat1_rad = lat1 * (np.pi/180)
+    long2_rad = long2 * (np.pi/180)
+    lat2_rad = lat2 * (np.pi/180)
+    delta_long = long2_rad - long1_rad
+    s1 = np.sin(lat1_rad)
+    s2 = np.sin(lat2_rad)
+    c1 = np.cos(lat1_rad)
+    c2 = np.cos(lat2_rad)
+    central_angle = np.arctan(np.sqrt((c2*np.sin(delta_long))**2
+                                      + (c1*s2-s1*c2*np.cos(delta_long))**2)
+                              / (s1*s2+c1*c2*np.cos(delta_long)))
+
+    return R * central_angle
