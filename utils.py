@@ -216,6 +216,32 @@ def get_triplength(A, B, router, dimension='duration'):
     if dimension == 'distance': # trip length in km
         return response['routes'][0]['legs'][0]['distance']/1000
 
+def get_tripmeasures(A, B, router):
+    """
+    Return the duration and distance of the trip from A and B
+    obtained with OSRM.
+
+    Parameters
+    ----------
+    A : array, shape (2)
+        The geographical coordinates of point A, in order
+        [longitude, latitude], in degrees
+    B : array, shape (2)
+        The geographical coordinates of point B, in order
+        [longitude, latitude], in degrees
+    router : osrm.Client instance
+        The routing client
+
+    Returns
+    -------
+    float
+        The duration in minutes
+    float
+        The distance in kilometers
+    """
+    response = router.route(coordinates=np.array([A,B]))['routes'][0]['legs'][0]
+    return np.array([response['duration']/60, response['distance']/1000])
+
 def measure_polygon(A, B, router, dimension='duration', meanR=False):
     """
     Measure angles and areas of the street network polygon.
@@ -230,42 +256,41 @@ def measure_polygon(A, B, router, dimension='duration', meanR=False):
         [longitude, latitude], in degrees
     router : osrm.Client instance
         The routing client
-    dimension : {'duration', 'distance'}, optional
-        The dimension of used triplengths. If 'duration',
-        the unit is minutes, if 'distance', the unit is kilometers.
     meanR : bool, optional
         If True, return the mean circumradius.
 
     Returns
     -------
-    ndarray
-        The angles at A
-    ndarray
-        The areas of the subtriangles
-    Float
+    ndarray, shape (N, 2)
+        The angles at A. First column is calculated using duration in minutes,
+        second column using distance in kilometers.
+    ndarray, shape (N, 2)
+        The areas of the subtriangles. First column is calculated using
+        duration in minutes, second column using distance in kilometers.
+    ndarray, shape (2,)
         Present only when meanR = True. The average circumradius of the polygon.
     """
     N = B.shape[0]
-    d = np.zeros(N)
-    c = np.zeros(N)
+    d = np.zeros((N, 2))
+    c = np.zeros((N, 2))
     for i in range(N):
-        d[i] = get_triplength(B[i],B[(i+1)%N],router,dimension=dimension)
-        c[i] = get_triplength(A,B[i],router,dimension=dimension)
-    mask1 = d > (c+np.roll(c,1))
-    mask2 = np.abs(c-np.roll(c,1)) > d
-    angles = interior_angle(c,np.roll(c,1),d)
-    areas = heron(c,np.roll(c,1),d)
+        d[i] = get_tripmeasures(B[i], B[(i+1)%N], router)
+        c[i] = get_tripmeasures(A, B[i], router)
+    mask1 = d > (c + np.roll(c, 1, axis=0))
+    mask2 = np.abs(c - np.roll(c, 1 ,axis=0)) > d
+    angles = interior_angle(c, np.roll(c, 1, axis=0), d)
+    areas = heron(c, np.roll(c, 1, axis=0), d)
     angles[mask1] = np.pi
     angles[mask2] = 0
     areas[mask1] = 0
     areas[mask2] = 0
 
     if meanR:
-        return angles, areas, np.average(c)
+        return angles, areas, np.average(c, axis=0)
     else:
         return angles, areas
 
-def asymmetry_parameter(angles):
+def asymmetry_parameter(angles, axis=0):
     """
     Calculate the asymmetry parameter of a polygon.
 
@@ -280,7 +305,8 @@ def asymmetry_parameter(angles):
         Asymmetry parameter
     """
     D = np.ones_like(angles)
-    dot = np.dot(D,angles) / (np.linalg.norm(D)*np.linalg.norm(angles))
+    dot = np.sum(D*angles, axis=axis) / (np.linalg.norm(D, axis=axis)
+                                         *np.linalg.norm(angles, axis=axis))
 
     return np.sqrt(1 - dot**2)
 

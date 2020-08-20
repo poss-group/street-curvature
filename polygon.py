@@ -5,9 +5,9 @@ import osrm
 
 from utils import construct_polygon, measure_polygon
 
-if len(sys.argv) != 10:
+if len(sys.argv) != 9:
     print("ERROR: Wrong number of arguments.")
-    print("Usage: python polygon.py longitude latitude Nmax Rmin Rmax Rvalues offset_values store_path dimension")
+    print("Usage: python polygon.py longitude latitude Nmax Rmin Rmax Rvalues offset_values store_path")
 else:
     client = osrm.Client(host='http://134.76.24.136/osrm')
 
@@ -19,7 +19,6 @@ else:
     Rvalues = int(sys.argv[6])
     offset_values = int(sys.argv[7])
     store_path = str(sys.argv[8])
-    dimension = str(sys.argv[9])
 
     # parameters
     N = np.arange(3, Nmax+1)
@@ -27,10 +26,10 @@ else:
     offset = np.linspace(0, 2*np.pi, offset_values)
 
     # data containers
-    defects = np.zeros((N.size, R.size, offset.size))
-    area_simple = np.zeros((N.size, R.size, offset.size))
-    area_weighted = np.zeros((N.size, R.size, offset.size))
-    mean_R = np.zeros((N.size, R.size, offset.size))
+    defects = np.zeros((N.size, R.size, offset.size, 2))
+    area_simple = np.zeros((N.size, R.size, offset.size, 2))
+    area_weighted = np.zeros((N.size, R.size, offset.size, 2))
+    mean_R = np.zeros((N.size, R.size, offset.size, 2))
 
     # calculation
     Npolygons = N.size * R.size * offset.size
@@ -40,12 +39,12 @@ else:
             for j, alpha in enumerate(offset):
                 B = construct_polygon(n, r, A, offset=alpha)
                 angles, areas, meanR = measure_polygon(A, B, client,
-                                                       dimension=dimension,
                                                        meanR=True)
                 mean_R[k][i][j] = meanR
-                defects[k][i][j] = 2*np.pi - np.sum(angles)
-                area_simple[k][i][j] = np.sum(areas) / 3
-                area_weighted[k][i][j] = np.sum(areas*angles) / np.sum(angles)
+                defects[k][i][j] = 2*np.pi - np.sum(angles, axis=0)
+                area_simple[k][i][j] = np.sum(areas, axis=0) / 3
+                area_weighted[k][i][j] = (np.sum(areas*angles, axis=0)
+                                          / np.sum(angles, axis=0))
                 counter += 1
                 print("{} of {} polygons evaluated.".format(counter, Npolygons))
 
@@ -68,5 +67,4 @@ else:
     logfile.write("Edges: "+str(N)+"\n")
     logfile.write("Polygon circumradii: {} values from {} to {}\n".format(Rvalues, Rmin, Rmax))
     logfile.write("{} offset values each.\n".format(offset_values))
-    logfile.write("Dimension used: {}\n".format(dimension))
     logfile.close()
