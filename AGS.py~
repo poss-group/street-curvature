@@ -22,7 +22,7 @@ else:
     with open('/home/david/geonames/DE.txt', newline='') as csvfile:
         datareader = csv.reader(csvfile, delimiter='\t')
         for row in datareader:
-            if row[8][:len(AGS)] == AGS:
+            if row[8] == AGS:
                 latitude = float(row[9])
                 longitude = float(row[10])
                 coordinates.append([longitude,latitude])
