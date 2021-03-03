@@ -4,7 +4,7 @@ from matplotlib.tri import Triangulation
 from scipy.spatial import Delaunay
 from routingpy.routers import OSRM
 
-from utils import interior_angle, heron
+from utils import *
 
 class Mesh(object):
     """
@@ -36,6 +36,76 @@ class Mesh(object):
         self.defects = None
         self.G = None
 
+    @classmethod
+    def pmesh_at_geolocation(cls, location, size1, a, size2=None, b=None, beta=np.pi/3, offset=0):
+        """
+        Construct a parallelogram mesh at a geographical location.
+
+        Parameters
+        ----------
+        location : (2,) array of float
+            Location in geographical coordinates [longitude, latitude].
+        size1 : int
+            Size in direction of first basis vector.
+        a : float
+            Length of first basis vector, in km.
+        size2 : int, optional
+            Size in direction of first basis vector. If not specified,
+        it is taken equal to size1.
+        b : float, optional
+            Length of first basis vector, in km.  If not specified,
+        it is taken equal to a.
+        theta : float, optional
+            Angle between basis vectors, in radians.
+        offset : float, optional
+            Angle between first basis vector and horizontal axis (equator).
+
+        Notes
+        -----
+        The mesh is first constructed at the equator and then rotated to the
+        geolocation. Therefore, offset=0 does not mean that the first basis
+        vector points eastward.
+        """
+        # handle kwargs
+        if size2 is None:
+            size2 = size1
+        if b is None:
+            b = a
+
+        # transform lengths to angular distances
+        R = 6371
+        a /= R
+        b /= R
+
+        # construct mesh points and triangles
+        triangles = []
+        m = np.arange(-size1, size1+1)
+        n = np.arange(-size2, size2+1)
+        M, N = np.meshgrid(m, n)
+        M = M.flatten()
+        N = N.flatten()
+        for k, m in enumerate(M):
+            n = N[k]
+            if n<size2:
+                if m<size1:
+                    triangles.append([k, k+1, k+2*size1+1])
+                if m>-size1:
+                    triangles.append([k, k+2*size1, k+2*size1+1])
+        phi = a*np.cos(offset)*M + b*np.cos(beta+offset)*N
+        theta = a*np.sin(offset)*M + b*np.sin(beta+offset)*N
+        points = np.array([phi, theta]).T
+
+        # rotate mesh points
+        points = geographical_to_spherical(points*(180/np.pi))
+        points = equator_to_geolocation(location, points)
+
+        # define boundary
+        B = (np.abs(M) == size1) + (np.abs(N) == size2)
+        boundary = np.where(B)[0]
+
+        return cls(points, triangles=triangles, boundary=boundary)
+
+
     def distances_from_metric(self, metric, args=()):
         """
         Calculate the distances between mesh points with the provided metric.
@@ -66,9 +136,12 @@ class Mesh(object):
             Additional kwargs are passed to router's directions method.
         """
         d = []
+        counter = 0
         for e in self.tri.edges:
-            route = router.distances(locations=self.points[e,:], **kwargs)
+            route = router.directions(locations=self.points[e,:], **kwargs)
             d.append(route.duration/60)
+            counter += 1
+            print("{} of {} edges calculated.".format(counter, self.tri.edges.shape[0]))
 
         self.fill_distances(np.array(d))
 
@@ -85,9 +158,12 @@ class Mesh(object):
             Additional kwargs are passed to router's directions method.
         """
         d = []
+        counter = 0
         for e in self.tri.edges:
-            route = router.distances(locations=self.points[e,:], **kwargs)
+            route = router.directions(locations=self.points[e,:], **kwargs)
             d.append(route.distance/1000)
+            counter += 1
+            print("{} of {} edges calculated.".format(counter, self.tri.edges.shape[0]))
 
         self.fill_distances(np.array(d))
 
@@ -184,10 +260,31 @@ if __name__ == "__main__":
     # test if Euclidean metric gives zero curvature
     def euclidean_metric(A, B):
         return np.linalg.norm(A-B, axis=-1)
-
     M = 40
     points = np.random.random((M, 2))
     mesh = Mesh(points)
     mesh.distances_from_metric(euclidean_metric)
     mesh.apply_defect_scheme()
     print(mesh.curvatures)
+
+    # test pmesh construction
+    mesh = Mesh.pmesh_at_geolocation(np.array([0, 30]), 5, 10)
+    plt.axis("equal")
+    plt.triplot(mesh.tri.x, mesh.tri.y, mesh.tri.triangles)
+    plt.show()
+
+    # test if GCDs gives earth curvature
+    from metrics import GCD
+    mesh.distances_from_metric(GCD, args=(6371,))
+    mesh.apply_defect_scheme()
+    print(mesh.curvatures)
+
+    # test OSRM routing
+    client = OSRM(base_url='http://134.76.24.136/osrm')
+    mesh = Mesh.pmesh_at_geolocation(np.array([9.939, 51.5364]), 10, 10)
+    mesh.durations_from_router(client, profile='car')
+    mesh.apply_defect_scheme()
+    plt.axis("equal")
+    plt.scatter(mesh.tri.x[mesh.interior], mesh.tri.y[mesh.interior], c=mesh.curvatures)
+    plt.colorbar()
+    plt.show()
