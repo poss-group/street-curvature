@@ -83,14 +83,14 @@ def geographical_to_spherical(coordinates):
     -------
     ndarray, shape (M, 2)
         The spherical coordinates of M points, in the order
-        [theta, phi], in radians
+        [phi, theta], in radians
     """
     longitudes = coordinates.T[0]
     latitudes = coordinates.T[1]
-    theta = (90-latitudes) * (np.pi/180)
     phi = longitudes * (np.pi/180)
+    theta = (90-latitudes) * (np.pi/180)
 
-    return np.array([theta, phi]).T
+    return np.array([phi, theta]).T
 
 def spherical_to_geographical(coordinates):
     """
@@ -100,7 +100,7 @@ def spherical_to_geographical(coordinates):
     ----------
     coordinates : array, shape (M, 2)
         The spherical coordinates of M points, in the order
-        [theta, phi], in radians
+        [phi, theta], in radians
 
     Returns
     -------
@@ -108,16 +108,17 @@ def spherical_to_geographical(coordinates):
         the geographical coordinates of M points, in the order
         [longitude, latitude], in degrees
     """
-    theta = coordinates.T[0]
-    phi = coordinates.T[1]
+    phi = coordinates.T[0]
+    theta = coordinates.T[1]
     longitudes = phi * (180/np.pi)
     latitudes = (np.pi/2-theta) * (180/np.pi)
 
     return np.array([longitudes, latitudes]).T
 
-def rotate_to_geolocation(location, coordinates):
+def northpole_to_geolocation(location, coordinates):
     """
-    Rotate the coordinates to the given geolocation.
+    Rotate the coordinates on the sphere, such that the northpole
+    is at the given geolocation.
 
     Parameters
     ----------
@@ -126,7 +127,7 @@ def rotate_to_geolocation(location, coordinates):
         [longitude, latitude], in degrees
     coordinates : array, shape (M, 2)
         The spherical coordinates of M points, in the order
-        [theta, phi], in radians
+        [phi, theta], in radians
 
     Returns
     -------
@@ -135,25 +136,124 @@ def rotate_to_geolocation(location, coordinates):
         [longitude, latitude], in degrees
     """
     location_spherical = geographical_to_spherical(location)
-    theta = coordinates.T[0]
-    phi = coordinates.T[1]
+    phi = coordinates.T[0]
+    theta = coordinates.T[1]
     # transform into qubit
     psi_0 = np.cos(theta/2)
     psi_1 = np.exp(1j*phi) * np.sin(theta/2)
     # rotate qubit
-    psi_rotated_0 = (np.cos(location_spherical[0]/2) * psi_0
-                     - (np.exp(-1j*location_spherical[1])
-                        * np.sin(location_spherical[0]/2)
+    psi_rotated_0 = (np.cos(location_spherical[1]/2) * psi_0
+                     - (np.exp(-1j*location_spherical[0])
+                        * np.sin(location_spherical[1]/2)
                         * psi_1))
-    psi_rotated_1 = ((np.exp(1j*location_spherical[1])
-                      * np.sin(location_spherical[0]/2)
+    psi_rotated_1 = ((np.exp(1j*location_spherical[0])
+                      * np.sin(location_spherical[1]/2)
                       * psi_0)
-                     + np.cos(location_spherical[0]/2) * psi_1)
+                     + np.cos(location_spherical[1]/2) * psi_1)
+    # transform back to spherical coordinates
+    phi = np.angle(psi_rotated_1) - np.angle(psi_rotated_0)
+    theta = 2 * np.arctan(np.abs(psi_rotated_1)/np.abs(psi_rotated_0))
+
+    return spherical_to_geographical(np.array([phi, theta]).T)
+
+def equator_to_geolocation(location, coordinates):
+    """
+    Rotate the coordinates on the sphere, such that the equator
+    is at the given geolocation.
+
+    Parameters
+    ----------
+    location : array, shape (2)
+        The geographical coordinates of the location, in order
+        [longitude, latitude], in degrees
+    coordinates : array, shape (M, 2)
+        The spherical coordinates of M points, in the order
+        [phi, theta], in radians
+
+    Returns
+    -------
+    ndarray, shape (M, 2)
+        The geographical coordinates of the M rotated points, in the order
+        [longitude, latitude], in degrees
+    """
+    location = geographical_to_spherical(location)
+    c = np.cos(location[1]/2)
+    s = np.sin(location[1]/2)
+    phi = coordinates.T[0]
+    theta = coordinates.T[1]
+    # transform into qubit
+    psi_0 = np.cos(theta/2)
+    psi_1 = np.exp(1j*phi) * np.sin(theta/2)
+    # rotate qubit
+    psi_rotated_0 = (np.exp(-1j*(location[0]/2))
+                     * (psi_0 * (c+s)/np.sqrt(2)
+                        +psi_1 * (c-s)/np.sqrt(2))
+    )
+    psi_rotated_1 = (np.exp(1j*(location[0]/2))
+                     * (psi_0 * (-c+s)/np.sqrt(2)
+                        +psi_1 * (c+s)/np.sqrt(2))
+    )
     # transform back to spherical coordinates
     theta = 2 * np.arctan(np.abs(psi_rotated_1)/np.abs(psi_rotated_0))
     phi = np.angle(psi_rotated_1) - np.angle(psi_rotated_0)
 
-    return spherical_to_geographical(np.array([theta, phi]).T)
+    return spherical_to_geographical(np.array([phi, theta]).T)
+
+def sphere_rotation(start, end, coordinates):
+    """
+    Rotate the coordinates on the sphere, such that start is
+    rotated to end.
+
+    Parameters
+    ----------
+    start : array, shape (2)
+        The geographical coordinates of the start location, in order
+        [longitude, latitude], in degrees
+    start : array, shape (2)
+        The geographical coordinates of the end location, in order
+        [longitude, latitude], in degrees
+    coordinates : array, shape (M, 2)
+        The spherical coordinates of M points, in the order
+        [phi, theta], in radians
+
+    Returns
+    -------
+    ndarray, shape (M, 2)
+        The geographical coordinates of the M rotated points, in the order
+        [longitude, latitude], in degrees
+    """
+    start = geographical_to_spherical(start)
+    end = geographical_to_spherical(end)
+    phi = coordinates.T[0]
+    theta = coordinates.T[1]
+    # transform into qubit
+    psi_0 = np.cos(theta/2)
+    psi_1 = np.exp(1j*phi) * np.sin(theta/2)
+    # rotate qubit
+    psi_rotated_0 = (np.cos(start[1]/2) * psi_0
+                     + (np.exp(-1j*start[0])
+                        * np.sin(start[1]/2)
+                        * psi_1))
+    psi_rotated_1 = (-(np.exp(1j*start[0])
+                      * np.sin(start[1]/2)
+                      * psi_0)
+                     + np.cos(start[1]/2) * psi_1)
+    psi_0 = psi_rotated_0
+    psi_1 = psi_rotated_1
+    # rotate qubit again
+    psi_rotated_0 = (np.cos(end[1]/2) * psi_0
+                     - (np.exp(-1j*end[0])
+                        * np.sin(end[1]/2)
+                        * psi_1))
+    psi_rotated_1 = ((np.exp(1j*end[0])
+                      * np.sin(end[1]/2)
+                      * psi_0)
+                     + np.cos(end[1]/2) * psi_1)
+    # transform back to spherical coordinates
+    theta = 2 * np.arctan(np.abs(psi_rotated_1)/np.abs(psi_rotated_0))
+    phi = np.angle(psi_rotated_1) - np.angle(psi_rotated_0)
+
+    return spherical_to_geographical(np.array([phi, theta]).T)
 
 def construct_polygon(N, R, location, offset=0):
     """
@@ -183,9 +283,9 @@ def construct_polygon(N, R, location, offset=0):
     # array of evenly spaced longitudes
     M = np.floor(((offset+np.pi)*N) / (2*np.pi))
     phi = 2*np.pi*(np.arange(N)/N) + offset - 2*np.pi*(M/N)
-    coordinates = np.array([theta*np.ones(N), phi]).T
+    coordinates = np.array([phi, theta*np.ones(N)]).T
 
-    return rotate_to_geolocation(location, coordinates)
+    return northpole_to_geolocation(location, coordinates)
 
 def get_triplength(A, B, router, dimension='duration'):
     """
