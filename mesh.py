@@ -77,38 +77,20 @@ class Mesh(object):
         a /= R
         b /= R
 
-        # construct mesh points and triangles
-        triangles = []
-        m = np.arange(-size1, size1+1)
-        n = np.arange(-size2, size2+1)
-        M, N = np.meshgrid(m, n)
-        M = M.flatten()
-        N = N.flatten()
-        for k, m in enumerate(M):
-            n = N[k]
-            if n<size2:
-                if m<size1:
-                    triangles.append([k, k+1, k+2*size1+1])
-                if m>-size1:
-                    triangles.append([k, k+2*size1, k+2*size1+1])
-        phi = a*np.cos(offset)*M + b*np.cos(beta+offset)*N
-        theta = a*np.sin(offset)*M + b*np.sin(beta+offset)*N
-        points = np.array([phi, theta]).T
+        # get pmesh
+        points, triangles, boundary = pmesh(size1, a, size2, b,
+                                            beta, offset)
 
-        # rotate mesh points
+        # move to geolocation
         points = geographical_to_spherical(points*(180/np.pi))
         points = equator_to_geolocation(location, points)
-
-        # define boundary
-        B = (np.abs(M) == size1) + (np.abs(N) == size2)
-        boundary = np.where(B)[0]
 
         return cls(points, triangles=triangles, boundary=boundary)
 
     @classmethod
     def hmesh_at_geolocation(cls, location, size, a, offset=0):
         """
-        Construct a parallelogram mesh at a geographical location.
+        Construct a hexagonal mesh at a geographical location.
 
         Parameters
         ----------
@@ -131,27 +113,14 @@ class Mesh(object):
         R = 6371
         a /= R
 
-        # construct mesh points
-        m = np.arange(-size, size+1)
-        M, N = np.meshgrid(m, m)
-        M = M.flatten()
-        N = N.flatten()
-        mask = np.abs(M+N) <= size
-        M = M[mask]
-        N = N[mask]
-        phi = a * (np.cos(offset)*M + np.cos(np.pi/3+offset)*N)
-        theta = a* (np.sin(offset)*M + np.sin(np.pi/3+offset)*N)
-        points = np.array([phi, theta]).T
+        # get hmesh
+        points, triangles, boundary = hmesh(size, a, offset)
 
-        # define triangles and boundary
-        tri = Delaunay(points)
-        boundary = np.unique(tri.convex_hull.flatten())
-
-        # rotate mesh points
+        # move to geolocation
         points = geographical_to_spherical(points*(180/np.pi))
         points = equator_to_geolocation(location, points)
 
-        return cls(points, triangles=tri.simplices, boundary=boundary)
+        return cls(points, triangles=triangles, boundary=boundary)
 
     def distances_from_metric(self, metric, args=()):
         """

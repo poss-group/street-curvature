@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.spatial import Delaunay
 
 def heron(a, b, c):
     """
@@ -447,3 +448,79 @@ def orthodromic_distance(long1, lat1, long2, lat2, R):
                               / (s1*s2+c1*c2*np.cos(delta_long)))
 
     return R * central_angle
+
+def pmesh(size1, a, size2, b, beta, offset):
+    """
+    Construct a parallelogram mesh.
+
+    Parameters
+    ----------
+    size1 : int
+        Size in direction of first basis vector.
+    a : float
+        Length of first basis vector, in km.
+    size2 : int, optional
+        Size in direction of first basis vector. If not specified,
+        it is taken equal to size1.
+    b : float, optional
+        Length of first basis vector, in km.  If not specified,
+        it is taken equal to a.
+    theta : float, optional
+        Angle between basis vectors, in radians.
+    offset : float, optional
+        Angle between first basis vector and horizontal axis (equator).
+    """
+    # construct mesh points and triangles
+    triangles = []
+    m = np.arange(-size1, size1+1)
+    n = np.arange(-size2, size2+1)
+    M, N = np.meshgrid(m, n)
+    M = M.flatten()
+    N = N.flatten()
+    for k, m in enumerate(M):
+        n = N[k]
+        if n<size2:
+            if m<size1:
+                triangles.append([k, k+1, k+2*size1+1])
+            if m>-size1:
+                triangles.append([k, k+2*size1, k+2*size1+1])
+    x = a*np.cos(offset)*M + b*np.cos(beta+offset)*N
+    y = a*np.sin(offset)*M + b*np.sin(beta+offset)*N
+    points = np.array([x, y]).T
+
+    # define boundary
+    B = (np.abs(M) == size1) + (np.abs(N) == size2)
+    boundary = np.where(B)[0]
+
+    return points, triangles, boundary
+
+def hmesh(size, a, offset):
+    """
+    Construct a hexagonal mesh.
+
+    Parameters
+    ----------
+    size : int
+        Size of the mesh (number of rings around centre).
+    a : float
+        Lattice spacing
+    offset : float, optional
+        Angle between first basis vector and horizontal axis.
+    """
+    # construct mesh points
+    m = np.arange(-size, size+1)
+    M, N = np.meshgrid(m, m)
+    M = M.flatten()
+    N = N.flatten()
+    mask = np.abs(M+N) <= size
+    M = M[mask]
+    N = N[mask]
+    x = a * (np.cos(offset)*M + np.cos(np.pi/3+offset)*N)
+    y = a* (np.sin(offset)*M + np.sin(np.pi/3+offset)*N)
+    points = np.array([x, y]).T
+
+    # define triangles and boundary
+    tri = Delaunay(points)
+    boundary = np.unique(tri.convex_hull.flatten())
+
+    return points, tri.simplices, boundary
