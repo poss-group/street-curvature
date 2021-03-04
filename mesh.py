@@ -301,7 +301,8 @@ if __name__ == "__main__":
     mesh.durations_from_router(client, profile='car')
     mesh.apply_defect_scheme()
     plt.axis("equal")
-    plt.scatter(mesh.tri.x[mesh.interior], mesh.tri.y[mesh.interior], c=mesh.curvatures)
+    plt.scatter(mesh.tri.x[mesh.interior], mesh.tri.y[mesh.interior],
+                c=mesh.curvatures)
     plt.colorbar()
     plt.show()
 
@@ -311,4 +312,16 @@ if __name__ == "__main__":
     plt.triplot(mesh.tri.x, mesh.tri.y, mesh.tri.triangles)
     B = mesh.boundary
     plt.scatter(mesh.tri.x[B], mesh.tri.y[B], c='red')
+    plt.show()
+
+    # test Karlsruhe metric
+    from metrics import karlsruhe
+    points, triangles, boundary = hmesh(10, 1, 0)
+    mesh = Mesh(points, triangles=triangles, boundary=boundary)
+    mesh.distances_from_metric(karlsruhe)
+    mesh.apply_defect_scheme()
+    plt.axis("equal")
+    plt.scatter(mesh.tri.x[mesh.interior], mesh.tri.y[mesh.interior],
+                c=mesh.curvatures)
+    plt.colorbar()
     plt.show()
