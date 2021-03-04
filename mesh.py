@@ -105,6 +105,53 @@ class Mesh(object):
 
         return cls(points, triangles=triangles, boundary=boundary)
 
+    @classmethod
+    def hmesh_at_geolocation(cls, location, size, a, offset=0):
+        """
+        Construct a parallelogram mesh at a geographical location.
+
+        Parameters
+        ----------
+        location : (2,) array of float
+            Location in geographical coordinates [longitude, latitude].
+        size : int
+            Size of the mesh (number of rings around centre).
+        a : float
+            Lattice spacing
+        offset : float, optional
+            Angle between first basis vector and horizontal axis (equator).
+
+        Notes
+        -----
+        The mesh is first constructed at the equator and then rotated to the
+        geolocation. Therefore, offset=0 does not mean that the first basis
+        vector points eastward.
+        """
+        # transform lengths to angular distances
+        R = 6371
+        a /= R
+
+        # construct mesh points
+        m = np.arange(-size, size+1)
+        M, N = np.meshgrid(m, m)
+        M = M.flatten()
+        N = N.flatten()
+        mask = np.abs(M+N) <= size
+        M = M[mask]
+        N = N[mask]
+        phi = a * (np.cos(offset)*M + np.cos(np.pi/3+offset)*N)
+        theta = a* (np.sin(offset)*M + np.sin(np.pi/3+offset)*N)
+        points = np.array([phi, theta]).T
+
+        # define triangles and boundary
+        tri = Delaunay(points)
+        boundary = np.unique(tri.convex_hull.flatten())
+
+        # rotate mesh points
+        points = geographical_to_spherical(points*(180/np.pi))
+        points = equator_to_geolocation(location, points)
+
+        return cls(points, triangles=tri.simplices, boundary=boundary)
 
     def distances_from_metric(self, metric, args=()):
         """
@@ -281,10 +328,18 @@ if __name__ == "__main__":
 
     # test OSRM routing
     client = OSRM(base_url='http://134.76.24.136/osrm')
-    mesh = Mesh.pmesh_at_geolocation(np.array([9.939, 51.5364]), 10, 10)
+    mesh = Mesh.pmesh_at_geolocation(np.array([9.939, 51.5364]), 3, 10)
     mesh.durations_from_router(client, profile='car')
     mesh.apply_defect_scheme()
     plt.axis("equal")
     plt.scatter(mesh.tri.x[mesh.interior], mesh.tri.y[mesh.interior], c=mesh.curvatures)
     plt.colorbar()
+    plt.show()
+
+    # test hmesh construction
+    mesh = Mesh.hmesh_at_geolocation(np.array([0, 30]), 5, 10)
+    plt.axis("equal")
+    plt.triplot(mesh.tri.x, mesh.tri.y, mesh.tri.triangles)
+    B = mesh.boundary
+    plt.scatter(mesh.tri.x[B], mesh.tri.y[B], c='red')
     plt.show()
