@@ -285,6 +285,7 @@ class Mesh(object):
         np.save(path+"triangles.npy", self.tri.triangles)
         np.save(path+"interior.npy", self.interior)
         np.save(path+"curvatures.npy", self.curvatures)
+        np.save(path+"distances.npy", self.distances)
 
 if __name__ == "__main__":
     # test if Euclidean metric gives zero curvature
