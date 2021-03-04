@@ -272,6 +272,20 @@ class Mesh(object):
 
         return self.defects / self.G
 
+    def save_numpy(self, path='./'):
+        """
+        Save data as numpy binary files.
+
+        Parameters
+        ----------
+        path : str, optional
+            Directory where data should be saved at.
+        """
+        np.save(path+"points.npy", self.points)
+        np.save(path+"triangles.npy", self.tri.triangles)
+        np.save(path+"interior.npy", self.interior)
+        np.save(path+"curvatures.npy", self.curvatures)
+
 if __name__ == "__main__":
     # test if Euclidean metric gives zero curvature
     def euclidean_metric(A, B):
