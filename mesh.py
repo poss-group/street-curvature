@@ -35,6 +35,7 @@ class Mesh(object):
         self.distances = None
         self.defects = None
         self.G = None
+        self.snapped_points = np.zeros_like(self.points)
 
     @classmethod
     def pmesh_at_geolocation(cls, location, size1, a, size2=None, b=None, beta=np.pi/3, offset=0):
@@ -155,6 +156,8 @@ class Mesh(object):
         counter = 0
         for e in self.tri.edges:
             route = router.directions(locations=self.points[e,:], **kwargs)
+            self.snapped_points[e[0]] = np.array(route.raw['waypoints'][0]['location'])
+            self.snapped_points[e[1]] = np.array(route.raw['waypoints'][-1]['location'])
             d.append(route.duration/60)
             counter += 1
             print("{} of {} edges calculated.".format(counter, self.tri.edges.shape[0]))
@@ -177,6 +180,8 @@ class Mesh(object):
         counter = 0
         for e in self.tri.edges:
             route = router.directions(locations=self.points[e,:], **kwargs)
+            self.snapped_points[e[0]] = np.array(route.raw['waypoints'][0]['location'])
+            self.snapped_points[e[1]] = np.array(route.raw['waypoints'][-1]['location'])
             d.append(route.distance/1000)
             counter += 1
             print("{} of {} edges calculated.".format(counter, self.tri.edges.shape[0]))
@@ -339,4 +344,16 @@ if __name__ == "__main__":
     plt.scatter(mesh.tri.x[mesh.interior], mesh.tri.y[mesh.interior],
                 c=mesh.curvatures)
     plt.colorbar()
+    plt.show()
+
+    # test snapping recording
+    mesh = Mesh.hmesh_at_geolocation(np.array([9.939, 51.5364]), 3, 4)
+    mesh.durations_from_router(client, profile='car')
+    plt.figure()
+    plt.axis("equal")
+    plt.scatter(mesh.tri.x[mesh.interior], mesh.tri.y[mesh.interior],
+                c='k')
+    plt.scatter(mesh.snapped_points[mesh.interior, 0],
+                mesh.snapped_points[mesh.interior, 1],
+                c='r')
     plt.show()
