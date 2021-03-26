@@ -34,6 +34,7 @@ class Mesh(object):
 
         self.distances = None
         self.defects = None
+        self.turning_angles = None
         self.G = None
         self.snapped_points = np.zeros_like(self.points)
 
@@ -259,6 +260,14 @@ class Mesh(object):
 
         self.defects = np.array(defects)
         self.G = np.array(G)
+
+        # calculate turning angles
+        turning_angles = []
+        for k in self.boundary:
+            mask = np.array(self.tri.triangles == k)
+            alpha = angles[mask]
+            turning_angles.append(np.pi-np.sum(alpha))
+        self.turning_angles = np.array(turning_angles)
 
     @property
     def interior(self):
