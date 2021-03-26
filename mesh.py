@@ -269,6 +269,30 @@ class Mesh(object):
             turning_angles.append(np.pi-np.sum(alpha))
         self.turning_angles = np.array(turning_angles)
 
+    def get_boundary_polygon(self):
+        """
+        Get the congruent polygon as a new Mesh istance.
+
+        Notes
+        -----
+        Only works for parallelogram meshes.
+        """
+        # find middle points
+        barycentre = np.mean(self.points, axis=0)
+        Aidx = np.argmin(np.linalg.norm(self.points-barycentre, axis=1))
+
+        # find polygon vertices
+        idx = [Aidx,]
+        for k in self.boundary:
+            mask = np.array(self.tri.triangles == k)
+            if np.sum(mask) == 2:
+                idx.append(k)
+        idx = np.array(idx)
+
+        # create new Mesh instance
+        points = self.points[idx]
+        return Mesh(points)
+
     @property
     def interior(self):
         """
@@ -302,67 +326,78 @@ class Mesh(object):
         np.save(path+"distances.npy", self.distances)
 
 if __name__ == "__main__":
-    # test if Euclidean metric gives zero curvature
-    def euclidean_metric(A, B):
-        return np.linalg.norm(A-B, axis=-1)
-    M = 40
-    points = np.random.random((M, 2))
-    mesh = Mesh(points)
-    mesh.distances_from_metric(euclidean_metric)
-    mesh.apply_defect_scheme()
-    print(mesh.curvatures)
+    # # test if Euclidean metric gives zero curvature
+    # def euclidean_metric(A, B):
+    #     return np.linalg.norm(A-B, axis=-1)
+    # M = 40
+    # points = np.random.random((M, 2))
+    # mesh = Mesh(points)
+    # mesh.distances_from_metric(euclidean_metric)
+    # mesh.apply_defect_scheme()
+    # print(mesh.curvatures)
 
-    # test pmesh construction
-    mesh = Mesh.pmesh_at_geolocation(np.array([0, 30]), 5, 10)
-    plt.axis("equal")
-    plt.triplot(mesh.tri.x, mesh.tri.y, mesh.tri.triangles)
-    plt.show()
+    # # test pmesh construction
+    # mesh = Mesh.pmesh_at_geolocation(np.array([0, 30]), 5, 10)
+    # plt.axis("equal")
+    # plt.triplot(mesh.tri.x, mesh.tri.y, mesh.tri.triangles)
+    # plt.show()
 
-    # test if GCDs gives earth curvature
-    from metrics import GCD
-    mesh.distances_from_metric(GCD, args=(6371,))
-    mesh.apply_defect_scheme()
-    print(mesh.curvatures)
+    # # test if GCDs gives earth curvature
+    # from metrics import GCD
+    # mesh.distances_from_metric(GCD, args=(6371,))
+    # mesh.apply_defect_scheme()
+    # print(mesh.curvatures)
 
-    # test OSRM routing
+    # # test OSRM routing
+    # client = OSRM(base_url='http://134.76.24.136/osrm')
+    # mesh = Mesh.pmesh_at_geolocation(np.array([9.939, 51.5364]), 3, 10)
+    # mesh.durations_from_router(client, profile='car')
+    # mesh.apply_defect_scheme()
+    # plt.axis("equal")
+    # plt.scatter(mesh.tri.x[mesh.interior], mesh.tri.y[mesh.interior],
+    #             c=mesh.curvatures)
+    # plt.colorbar()
+    # plt.show()
+
+    # # test hmesh construction
+    # mesh = Mesh.hmesh_at_geolocation(np.array([0, 30]), 5, 10)
+    # plt.axis("equal")
+    # plt.triplot(mesh.tri.x, mesh.tri.y, mesh.tri.triangles)
+    # B = mesh.boundary
+    # plt.scatter(mesh.tri.x[B], mesh.tri.y[B], c='red')
+    # plt.show()
+
+    # # test Karlsruhe metric
+    # from metrics import karlsruhe
+    # points, triangles, boundary = hmesh(10, 1, 0)
+    # mesh = Mesh(points, triangles=triangles, boundary=boundary)
+    # mesh.distances_from_metric(karlsruhe)
+    # mesh.apply_defect_scheme()
+    # plt.axis("equal")
+    # plt.scatter(mesh.tri.x[mesh.interior], mesh.tri.y[mesh.interior],
+    #             c=mesh.curvatures)
+    # plt.colorbar()
+    # plt.show()
+
+    # # test snapping recording
+    # client = OSRM(base_url='http://134.76.24.136/osrm')
+    # mesh = Mesh.hmesh_at_geolocation(np.array([9.939, 51.5364]), 3, 4)
+    # mesh.durations_from_router(client, profile='car')
+    # plt.figure()
+    # plt.axis("equal")
+    # plt.scatter(mesh.tri.x[mesh.interior], mesh.tri.y[mesh.interior],
+    #             c='k')
+    # plt.scatter(mesh.snapped_points[mesh.interior, 0],
+    #             mesh.snapped_points[mesh.interior, 1],
+    #             c='r')
+    # plt.show()
+
+    # test boundary polygon creation
     client = OSRM(base_url='http://134.76.24.136/osrm')
-    mesh = Mesh.pmesh_at_geolocation(np.array([9.939, 51.5364]), 3, 10)
-    mesh.durations_from_router(client, profile='car')
-    mesh.apply_defect_scheme()
-    plt.axis("equal")
-    plt.scatter(mesh.tri.x[mesh.interior], mesh.tri.y[mesh.interior],
-                c=mesh.curvatures)
-    plt.colorbar()
-    plt.show()
-
-    # test hmesh construction
-    mesh = Mesh.hmesh_at_geolocation(np.array([0, 30]), 5, 10)
-    plt.axis("equal")
-    plt.triplot(mesh.tri.x, mesh.tri.y, mesh.tri.triangles)
-    B = mesh.boundary
-    plt.scatter(mesh.tri.x[B], mesh.tri.y[B], c='red')
-    plt.show()
-
-    # test Karlsruhe metric
-    from metrics import karlsruhe
-    points, triangles, boundary = hmesh(10, 1, 0)
-    mesh = Mesh(points, triangles=triangles, boundary=boundary)
-    mesh.distances_from_metric(karlsruhe)
-    mesh.apply_defect_scheme()
-    plt.axis("equal")
-    plt.scatter(mesh.tri.x[mesh.interior], mesh.tri.y[mesh.interior],
-                c=mesh.curvatures)
-    plt.colorbar()
-    plt.show()
-
-    # test snapping recording
     mesh = Mesh.hmesh_at_geolocation(np.array([9.939, 51.5364]), 3, 4)
-    mesh.durations_from_router(client, profile='car')
+    poly = mesh.get_boundary_polygon()
     plt.figure()
     plt.axis("equal")
-    plt.scatter(mesh.tri.x[mesh.interior], mesh.tri.y[mesh.interior],
-                c='k')
-    plt.scatter(mesh.snapped_points[mesh.interior, 0],
-                mesh.snapped_points[mesh.interior, 1],
-                c='r')
+    plt.scatter(mesh.tri.x, mesh.tri.y, c='k')
+    plt.scatter(poly.tri.x, poly.tri.y, c='r')
     plt.show()
