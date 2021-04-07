@@ -310,7 +310,7 @@ class Mesh(object):
 
         return self.defects / self.G
 
-    def save_numpy(self, path='./'):
+    def save_numpy(self, path='./', suffix=''):
         """
         Save data as numpy binary files.
 
@@ -318,12 +318,14 @@ class Mesh(object):
         ----------
         path : str, optional
             Directory where data should be saved at.
+        suffix : str, optional
+            Suffix to append to filenames.
         """
-        np.save(path+"points.npy", self.points)
-        np.save(path+"triangles.npy", self.tri.triangles)
-        np.save(path+"interior.npy", self.interior)
-        np.save(path+"curvatures.npy", self.curvatures)
-        np.save(path+"distances.npy", self.distances)
+        np.save(path+"points" + suffix + ".npy", self.points)
+        np.save(path+"triangles" + suffix + ".npy", self.tri.triangles)
+        np.save(path+"interior" + suffix + ".npy", self.interior)
+        np.save(path+"curvatures" + suffix + ".npy", self.curvatures)
+        np.save(path+"distances" + suffix + ".npy", self.distances)
 
 if __name__ == "__main__":
     # # test if Euclidean metric gives zero curvature
