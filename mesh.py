@@ -141,6 +141,32 @@ class Mesh(object):
 
         self.fill_distances(d)
 
+    def distances_from_height(self, height, args=()):
+        """
+        Calculate the distances between mesh points with the provided
+        height function..
+
+        Parameters
+        ----------
+        height : callable(x, y, ...)
+            Callable that gives the height at positions (x, y), where
+            x and y are arrays of the same shape.
+        args : tuple, optional
+            Extra arguments to pass to height function.
+        """
+        # calculate height
+        X, Y = self.points.T
+        Z = height(X, Y, *args)
+        vec = np.array([X, Y, Z])
+
+        # calculate distances
+        N_triangles = self.tri.triangles.shape[0]
+        D = np.zeros((N_triangles, 3))
+        for i, T in enumerate(self.tri.triangles):
+            D[i] = np.linalg.norm(vec[:,T]-vec[:,np.roll(T, -1)],
+                                  axis=0)
+        self.distances = D
+
     def durations_from_router(self, router, **kwargs):
         """
         Calculate the distances between mesh points using a the durations
@@ -221,7 +247,7 @@ class Mesh(object):
                 * 'module' : The module of the mesh.
         """
         if self.distances is None:
-            raise ValueError("Distances not calculated yet")
+            raise ValueError("Distances not calculated yet.")
 
         # calculate angles and triangle areas
         angles = interior_angle(self.distances,
@@ -394,12 +420,25 @@ if __name__ == "__main__":
     #             c='r')
     # plt.show()
 
-    # test boundary polygon creation
-    client = OSRM(base_url='http://134.76.24.136/osrm')
-    mesh = Mesh.hmesh_at_geolocation(np.array([9.939, 51.5364]), 3, 4)
-    poly = mesh.get_boundary_polygon()
-    plt.figure()
+    # # test boundary polygon creation
+    # client = OSRM(base_url='http://134.76.24.136/osrm')
+    # mesh = Mesh.hmesh_at_geolocation(np.array([9.939, 51.5364]), 3, 4)
+    # poly = mesh.get_boundary_polygon()
+    # plt.figure()
+    # plt.axis("equal")
+    # plt.scatter(mesh.tri.x, mesh.tri.y, c='k')
+    # plt.scatter(poly.tri.x, poly.tri.y, c='r')
+    # plt.show()
+
+    # test distances from height
+    def unit_sphere(x, y):
+        return np.sqrt(1 - x**2 - y**2)
+    points, triangles, boundary = hmesh(5, 0.1, 0)
+    mesh = Mesh(points, triangles=triangles, boundary=boundary)
+    mesh.distances_from_height(unit_sphere)
+    mesh.apply_defect_scheme()
     plt.axis("equal")
-    plt.scatter(mesh.tri.x, mesh.tri.y, c='k')
-    plt.scatter(poly.tri.x, poly.tri.y, c='r')
+    plt.scatter(mesh.tri.x[mesh.interior], mesh.tri.y[mesh.interior],
+                c=mesh.curvatures)
+    plt.colorbar()
     plt.show()
