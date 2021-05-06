@@ -97,6 +97,7 @@ def delaunay(points):
         Euclidean distance between nodes.
     """
     G = nx.Graph()
+    N = points.shape[0]
     pos = {i: points[i] for i in range(N)}
     G.add_nodes_from(pos.keys())
     nx.set_node_attributes(G, pos, 'pos')
@@ -367,5 +368,18 @@ if __name__ == "__main__":
     plt.axis("equal")
     nx.draw_networkx(G, pos=pos, with_labels=False, edgelist=el,
                      node_size=40, edge_color=speed)
+    plt.tight_layout()
+    plt.show()
+
+    # Gabriel graph of grid points
+    x = np.arange(6)
+    X, Y = np.meshgrid(x, x)
+    points = np.array([X.flatten(), Y.flatten()]).T
+    G = gabriel(points)
+    pos = nx.get_node_attributes(G, 'pos')
+    plt.figure(figsize=(6.6,6))
+    plt.axis("equal")
+    nx.draw_networkx(G, pos=pos, with_labels=False,
+                     node_size=40)
     plt.tight_layout()
     plt.show()
