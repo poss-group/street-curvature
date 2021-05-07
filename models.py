@@ -6,7 +6,7 @@ from scipy.spatial import Delaunay, KDTree
 from scipy.spatial.distance import pdist, squareform
 from scipy.stats import binned_statistic
 from utils import interior_angle
-from utils_network import condensed_to_square
+from utils_network import *
 
 
 def polygon_defects(G, Nmax, x, distances, delta=1, sizes=30,
@@ -17,8 +17,8 @@ def polygon_defects(G, Nmax, x, distances, delta=1, sizes=30,
     meanR = []
     for n in range(3, Nmax+1):
         A, B = generate_polygons(N, n, sizes, offset)
-        idxA = snap_points_to_network(G, A)
-        idxB = snap_points_to_network(G, B)
+        idxA = snap_to_network_nodes(G, A)
+        idxB = snap_to_network_nodes(G, B)
         c = distances[idxA, idxB]
         d = distances[idxB, np.roll(idxB, 1, axis=2)]
         c = (np.minimum(c, delta)
@@ -49,14 +49,6 @@ def generate_polygons(N, n, sizes, offset):
     B = np.array([x,y]).T
 
     return A, B
-
-def snap_points_to_network(G, points):
-    pos = nx.get_node_attributes(G, 'pos')
-    network_points = np.array(list(pos.values()))
-    tree = KDTree(network_points)
-    d, neighbors = tree.query(points)
-
-    return neighbors
 
 def route_length_statistic(G, binwidth=0.2):
     N = G.number_of_nodes()
@@ -322,8 +314,8 @@ if __name__ == "__main__":
     # G = gabriel(N)
     # pos = nx.get_node_attributes(G, 'pos')
     # A, B = generate_polygons(N, n, 3, 4)
-    # idxA = snap_points_to_network(G, A)
-    # idxB = snap_points_to_network(G, B)
+    # idxA = snap_to_network_nodes(G, A)
+    # idxB = snap_to_network_nodes(G, B)
     # fig, axes = plt.subplots(3, 4, figsize=(12, 9))
     # for i, row in enumerate(axes):
     #     for j, ax in enumerate(row):
@@ -343,43 +335,126 @@ if __name__ == "__main__":
     # plt.plot(d, rho)
     # plt.show()
 
-    # test uniform speeds
-    N = 200
-    points = np.random.random((N, 2))
-    G = gabriel(points)
-    assign_uniform_speeds(G, 1, 1.5)
-    pos = nx.get_node_attributes(G, 'pos')
-    speed = nx.get_edge_attributes(G, 'speed')
-    el = list(speed.keys())
-    speed = list(speed.values())
-    plt.figure(figsize=(6.6,6))
-    plt.axis("equal")
-    nx.draw_networkx(G, pos=pos, with_labels=False, edgelist=el,
-                     node_size=40, edge_color=speed)
-    plt.tight_layout()
-    plt.show()
+    # # test uniform speeds
+    # N = 200
+    # points = np.random.random((N, 2))
+    # G = gabriel(points)
+    # assign_uniform_speeds(G, 1, 1.5)
+    # pos = nx.get_node_attributes(G, 'pos')
+    # speed = nx.get_edge_attributes(G, 'speed')
+    # el = list(speed.keys())
+    # speed = list(speed.values())
+    # plt.figure(figsize=(6.6,6))
+    # plt.axis("equal")
+    # nx.draw_networkx(G, pos=pos, with_labels=False, edgelist=el,
+    #                  node_size=40, edge_color=speed)
+    # plt.tight_layout()
+    # plt.show()
 
-    # test boosting
-    boost_random_fraction(G, 0.5, 0.6)
-    speed = nx.get_edge_attributes(G, 'speed')
-    el = list(speed.keys())
-    speed = list(speed.values())
-    plt.figure(figsize=(6.6,6))
-    plt.axis("equal")
-    nx.draw_networkx(G, pos=pos, with_labels=False, edgelist=el,
-                     node_size=40, edge_color=speed)
-    plt.tight_layout()
-    plt.show()
+    # # test boosting
+    # boost_random_fraction(G, 0.5, 0.6)
+    # speed = nx.get_edge_attributes(G, 'speed')
+    # el = list(speed.keys())
+    # speed = list(speed.values())
+    # plt.figure(figsize=(6.6,6))
+    # plt.axis("equal")
+    # nx.draw_networkx(G, pos=pos, with_labels=False, edgelist=el,
+    #                  node_size=40, edge_color=speed)
+    # plt.tight_layout()
+    # plt.show()
 
-    # Gabriel graph of grid points
-    x = np.arange(6)
-    X, Y = np.meshgrid(x, x)
-    points = np.array([X.flatten(), Y.flatten()]).T
+    # # Gabriel graph of grid points
+    # x = np.arange(6)
+    # X, Y = np.meshgrid(x, x)
+    # points = np.array([X.flatten(), Y.flatten()]).T
+    # G = gabriel(points)
+    # pos = nx.get_node_attributes(G, 'pos')
+    # plt.figure(figsize=(6.6,6))
+    # plt.axis("equal")
+    # nx.draw_networkx(G, pos=pos, with_labels=False,
+    #                  node_size=40)
+    # plt.tight_layout()
+    # plt.show()
+
+    # # barycentric node
+    # G = taxicab(6)
+    # A = get_barycentric_node(G)
+    # pos = nx.get_node_attributes(G, 'pos')
+    # plt.figure(figsize=(6.6,6))
+    # plt.axis("equal")
+    # nx.draw_networkx(G, pos=pos, with_labels=False,
+    #                  node_size=40)
+    # nx.draw_networkx_nodes(G, pos=pos, nodelist=[A], node_size=60,
+    #                        node_color='red')
+    # plt.tight_layout()
+    # plt.show()
+
+    # # snap to edge
+    # N = 400
+    # points = np.random.random((N, 2))
+    # G = gabriel(points)
+    # locs = np.random.random((10, 2))
+    # gdf = graph_to_gdf(G)
+    # ne, refdist = snap_to_edge_position(gdf, locs)
+    # pos = nx.get_node_attributes(G, 'pos')
+    # plt.figure(figsize=(6.6,6))
+    # plt.axis("equal")
+    # nx.draw_networkx(G, pos=pos, with_labels=False,
+    #                  node_size=40)
+    # for j, p in enumerate(locs):
+    #     line = gdf["geometry"][ne[j]]
+    #     psnapped = line.interpolate(refdist[j])
+    #     plt.scatter([p[0], psnapped.x], [p[1], psnapped.y])
+
+    # plt.tight_layout()
+    # plt.show()
+
+    # snapping a polygon
+    np.random.seed(seed=250)
+    N = 500
+    points = np.sqrt(N)*np.random.random((N, 2))
     G = gabriel(points)
+    A = get_barycentric_node(G)
+    n = 6
+    R = np.sqrt(N) / 3
+    angles = ((2*np.pi*np.arange(n)) / n)
+    x = points[A,0] + np.cos(angles)*R
+    y = points[A,1] + np.sin(angles)*R
+    B = np.array([x,y]).T
+    gdf = graph_to_gdf(G)
+    # first with one nearest edge
+    ne, refdist = snap_to_edge_position(gdf, B, k=1)
     pos = nx.get_node_attributes(G, 'pos')
-    plt.figure(figsize=(6.6,6))
+    plt.subplot(121)
     plt.axis("equal")
     nx.draw_networkx(G, pos=pos, with_labels=False,
-                     node_size=40)
+                     node_size=40, node_color='black')
+    B_snapped = []
+    for j, e in enumerate(ne):
+        line = gdf["geometry"][e]
+        psnapped = line.interpolate(refdist[j])
+        B_snapped.append([psnapped.x, psnapped.y])
+    B_snapped = np.array(B_snapped)
+    nx.draw_networkx_nodes(G, pos=pos, nodelist=[A], node_size=60,
+                            node_color='red')
+    plt.scatter(B[:,0], B[:,1], color='orange')
+    plt.scatter(B_snapped[:,0], B_snapped[:,1], color='red', zorder=3)
+    # then with more
+    ne, refdist = snap_to_edge_position(gdf, B, k=3)
+    pos = nx.get_node_attributes(G, 'pos')
+    plt.subplot(122)
+    plt.axis("equal")
+    nx.draw_networkx(G, pos=pos, with_labels=False,
+                     node_size=40, node_color='black')
+    B_snapped = []
+    for j, e in enumerate(ne):
+        line = gdf["geometry"][e]
+        psnapped = line.interpolate(refdist[j])
+        B_snapped.append([psnapped.x, psnapped.y])
+    B_snapped = np.array(B_snapped)
+    nx.draw_networkx_nodes(G, pos=pos, nodelist=[A], node_size=60,
+                            node_color='red')
+    plt.scatter(B[:,0], B[:,1], color='orange')
+    plt.scatter(B_snapped[:,0], B_snapped[:,1], color='red', zorder=3)
     plt.tight_layout()
     plt.show()
