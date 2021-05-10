@@ -39,17 +39,13 @@ def polygon_defects(G, Nmax, x, distances, delta=1, sizes=30,
 
     return np.array(defects), R, np.array(meanR)
 
-def generate_polygons(N, n, sizes, offset):
-    A = np.array([np.sqrt(N), np.sqrt(N)]) / 2
-    offset = ((2*np.pi*np.arange(offset)) / offset)
-    angles = ((2*np.pi*np.arange(n)) / n)
-    angles = angles[:,np.newaxis] + offset
-    R = np.linspace(2, np.sqrt(N)/2, sizes)
-    x = A[0] + np.cos(angles)[:,:,np.newaxis]*R
-    y = A[1] + np.sin(angles)[:,:,np.newaxis]*R
+def get_polygon_coordinates(A, n, R, offset):
+    angles = ((2*np.pi*np.arange(n)) / n) + offset
+    x = A[0] + R*np.cos(angles)
+    y = A[1] + R*np.sin(angles)
     B = np.array([x,y]).T
 
-    return A, B
+    return B
 
 def route_length_statistic(G, binwidth=0.2):
     N = G.number_of_nodes()
@@ -410,55 +406,55 @@ if __name__ == "__main__":
     # plt.tight_layout()
     # plt.show()
 
-    # # snapping a polygon
-    # np.random.seed(seed=250)
-    # N = 500
-    # points = np.sqrt(N)*np.random.random((N, 2))
-    # G = gabriel(points)
-    # A = get_barycentric_node(G)
-    # n = 6
-    # R = np.sqrt(N) / 3
-    # angles = ((2*np.pi*np.arange(n)) / n)
-    # x = points[A,0] + np.cos(angles)*R
-    # y = points[A,1] + np.sin(angles)*R
-    # B = np.array([x,y]).T
-    # gdf = graph_to_gdf(G)
-    # # first with one nearest edge
-    # ne, refdist = snap_to_edge_position(gdf, B, k=1)
-    # pos = nx.get_node_attributes(G, 'pos')
-    # plt.subplot(121)
-    # plt.axis("equal")
-    # nx.draw_networkx(G, pos=pos, with_labels=False,
-    #                  node_size=40, node_color='black')
-    # B_snapped = []
-    # for j, e in enumerate(ne):
-    #     line = gdf["geometry"][e]
-    #     psnapped = line.interpolate(refdist[j])
-    #     B_snapped.append([psnapped.x, psnapped.y])
-    # B_snapped = np.array(B_snapped)
-    # nx.draw_networkx_nodes(G, pos=pos, nodelist=[A], node_size=60,
-    #                         node_color='red')
-    # plt.scatter(B[:,0], B[:,1], color='orange')
-    # plt.scatter(B_snapped[:,0], B_snapped[:,1], color='red', zorder=3)
-    # # then with more
-    # ne, refdist = snap_to_edge_position(gdf, B, k=3)
-    # pos = nx.get_node_attributes(G, 'pos')
-    # plt.subplot(122)
-    # plt.axis("equal")
-    # nx.draw_networkx(G, pos=pos, with_labels=False,
-    #                  node_size=40, node_color='black')
-    # B_snapped = []
-    # for j, e in enumerate(ne):
-    #     line = gdf["geometry"][e]
-    #     psnapped = line.interpolate(refdist[j])
-    #     B_snapped.append([psnapped.x, psnapped.y])
-    # B_snapped = np.array(B_snapped)
-    # nx.draw_networkx_nodes(G, pos=pos, nodelist=[A], node_size=60,
-    #                         node_color='red')
-    # plt.scatter(B[:,0], B[:,1], color='orange')
-    # plt.scatter(B_snapped[:,0], B_snapped[:,1], color='red', zorder=3)
-    # plt.tight_layout()
-    # plt.show()
+    # snapping a polygon
+    np.random.seed(seed=250)
+    N = 500
+    points = np.sqrt(N)*np.random.random((N, 2))
+    G = gabriel(points)
+    A = get_barycentric_node(G)
+    n = 6
+    R = np.sqrt(N) / 3
+    angles = ((2*np.pi*np.arange(n)) / n)
+    x = points[A,0] + np.cos(angles)*R
+    y = points[A,1] + np.sin(angles)*R
+    B = np.array([x,y]).T
+    gdf = graph_to_gdf(G)
+    # first with one nearest edge
+    ne, refdist = snap_to_edge_position(gdf, B, k=1)
+    pos = nx.get_node_attributes(G, 'pos')
+    plt.subplot(121)
+    plt.axis("equal")
+    nx.draw_networkx(G, pos=pos, with_labels=False,
+                     node_size=40, node_color='black')
+    B_snapped = []
+    for j, e in enumerate(ne):
+        line = gdf["geometry"][e]
+        psnapped = line.interpolate(refdist[j])
+        B_snapped.append([psnapped.x, psnapped.y])
+    B_snapped = np.array(B_snapped)
+    nx.draw_networkx_nodes(G, pos=pos, nodelist=[A], node_size=60,
+                            node_color='red')
+    plt.scatter(B[:,0], B[:,1], color='orange')
+    plt.scatter(B_snapped[:,0], B_snapped[:,1], color='red', zorder=3)
+    # then with more
+    ne, refdist = snap_to_edge_position(gdf, B, k=3)
+    pos = nx.get_node_attributes(G, 'pos')
+    plt.subplot(122)
+    plt.axis("equal")
+    nx.draw_networkx(G, pos=pos, with_labels=False,
+                     node_size=40, node_color='black')
+    B_snapped = []
+    for j, e in enumerate(ne):
+        line = gdf["geometry"][e]
+        psnapped = line.interpolate(refdist[j])
+        B_snapped.append([psnapped.x, psnapped.y])
+    B_snapped = np.array(B_snapped)
+    nx.draw_networkx_nodes(G, pos=pos, nodelist=[A], node_size=60,
+                            node_color='red')
+    plt.scatter(B[:,0], B[:,1], color='orange')
+    plt.scatter(B_snapped[:,0], B_snapped[:,1], color='red', zorder=3)
+    plt.tight_layout()
+    plt.show()
 
     # # test circles
     # np.random.seed(seed=250)
@@ -503,68 +499,68 @@ if __name__ == "__main__":
     # plt.title("Circles with duration metric")
     # plt.show()
 
-    # test subdivide edges
-    plt.figure(figsize=(10, 9))
-    np.random.seed(seed=220)
-    N = 50
-    points = np.sqrt(N)*np.random.random((N, 2))
-    G = gabriel(points)
-    A = get_barycentric_node(G)
-    R = np.array([np.sqrt(N) / 4])
-    circles = get_circles(G, A, R, 'dist')
-    pos = nx.get_node_attributes(G, 'pos')
-    plt.subplot(221)
-    plt.axis("equal")
-    nx.draw_networkx(G, pos=pos, with_labels=False,
-                      node_size=20, node_color='black')
-    H = deepcopy(G)
-    for C in circles:
-        Cpos = []
-        for u, v, lvec in C:
-            direction = (pos[v] - pos[u]) / G[u][v]['dist']
-            subdivide_edge(H, u, v, lvec, 'dist')
-            for l in lvec:
-                Cpos.append(pos[u]+l*direction)
-        Cpos = np.array(Cpos)
-        plt.scatter(Cpos[:,0], Cpos[:,1])
-    plt.title("dist, scatter")
-    plt.subplot(222)
-    plt.axis("equal")
-    posH = nx.get_node_attributes(H, "pos")
-    circle_nodes = list(range(N+1, H.number_of_nodes()+1))
-    nx.draw_networkx_edges(H, pos=posH, width=0.6)
-    nx.draw_networkx_nodes(H, pos=posH, nodelist=circle_nodes,
-                       node_color='blue', node_size=20)
-    plt.title('dist, subdivide')
-    Cpos_subdivide = np.array(list(posH.values()))[N:]
-    print(Cpos-Cpos_subdivide)
-    # circles with speeds
-    boost_random_fraction(G, 0.3, 0.6)
-    circles = get_circles(G, A, R, 'time')
-    pos = nx.get_node_attributes(G, 'pos')
-    plt.subplot(223)
-    plt.axis("equal")
-    nx.draw_networkx(G, pos=pos, with_labels=False,
-                      node_size=20, node_color='black')
-    H = deepcopy(G)
-    for C in circles:
-        Cpos = []
-        for u, v, lvec in C:
-            direction = (pos[v] - pos[u]) / G[u][v]['time']
-            subdivide_edge(H, u, v, lvec, 'time')
-            for l in lvec:
-                Cpos.append(pos[u]+l*direction)
-        Cpos = np.array(Cpos)
-        plt.scatter(Cpos[:,0], Cpos[:,1])
-    plt.title("time, scatter")
-    plt.subplot(224)
-    plt.axis("equal")
-    posH = nx.get_node_attributes(H, "pos")
-    circle_nodes = list(range(N+1, H.number_of_nodes()+1))
-    nx.draw_networkx_edges(H, pos=posH, width=0.6)
-    nx.draw_networkx_nodes(H, pos=posH, nodelist=circle_nodes,
-                       node_color='blue', node_size=20)
-    plt.title('time, subdivide')
-    plt.show()
-    Cpos_subdivide = np.array(list(posH.values()))[N:]
-    print(Cpos-Cpos_subdivide)
+    # # test subdivide edges
+    # plt.figure(figsize=(10, 9))
+    # np.random.seed(seed=220)
+    # N = 50
+    # points = np.sqrt(N)*np.random.random((N, 2))
+    # G = gabriel(points)
+    # A = get_barycentric_node(G)
+    # R = np.array([np.sqrt(N) / 4])
+    # circles = get_circles(G, A, R, 'dist')
+    # pos = nx.get_node_attributes(G, 'pos')
+    # plt.subplot(221)
+    # plt.axis("equal")
+    # nx.draw_networkx(G, pos=pos, with_labels=False,
+    #                   node_size=20, node_color='black')
+    # H = deepcopy(G)
+    # for C in circles:
+    #     Cpos = []
+    #     for u, v, lvec in C:
+    #         direction = (pos[v] - pos[u]) / G[u][v]['dist']
+    #         subdivide_edge(H, u, v, lvec, 'dist')
+    #         for l in lvec:
+    #             Cpos.append(pos[u]+l*direction)
+    #     Cpos = np.array(Cpos)
+    #     plt.scatter(Cpos[:,0], Cpos[:,1])
+    # plt.title("dist, scatter")
+    # plt.subplot(222)
+    # plt.axis("equal")
+    # posH = nx.get_node_attributes(H, "pos")
+    # circle_nodes = list(range(N+1, H.number_of_nodes()+1))
+    # nx.draw_networkx_edges(H, pos=posH, width=0.6)
+    # nx.draw_networkx_nodes(H, pos=posH, nodelist=circle_nodes,
+    #                    node_color='blue', node_size=20)
+    # plt.title('dist, subdivide')
+    # Cpos_subdivide = np.array(list(posH.values()))[N:]
+    # print(Cpos-Cpos_subdivide)
+    # # circles with speeds
+    # boost_random_fraction(G, 0.3, 0.6)
+    # circles = get_circles(G, A, R, 'time')
+    # pos = nx.get_node_attributes(G, 'pos')
+    # plt.subplot(223)
+    # plt.axis("equal")
+    # nx.draw_networkx(G, pos=pos, with_labels=False,
+    #                   node_size=20, node_color='black')
+    # H = deepcopy(G)
+    # for C in circles:
+    #     Cpos = []
+    #     for u, v, lvec in C:
+    #         direction = (pos[v] - pos[u]) / G[u][v]['time']
+    #         subdivide_edge(H, u, v, lvec, 'time')
+    #         for l in lvec:
+    #             Cpos.append(pos[u]+l*direction)
+    #     Cpos = np.array(Cpos)
+    #     plt.scatter(Cpos[:,0], Cpos[:,1])
+    # plt.title("time, scatter")
+    # plt.subplot(224)
+    # plt.axis("equal")
+    # posH = nx.get_node_attributes(H, "pos")
+    # circle_nodes = list(range(N+1, H.number_of_nodes()+1))
+    # nx.draw_networkx_edges(H, pos=posH, width=0.6)
+    # nx.draw_networkx_nodes(H, pos=posH, nodelist=circle_nodes,
+    #                    node_color='blue', node_size=20)
+    # plt.title('time, subdivide')
+    # plt.show()
+    # Cpos_subdivide = np.array(list(posH.values()))[N:]
+    # print(Cpos-Cpos_subdivide)

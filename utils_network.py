@@ -76,6 +76,28 @@ def subdivide_edge(G, u, v, positions_on_edge, weight):
     G.remove_edge(u, v)
 
 def get_circles(G, center, radii, weight):
+    """
+    Get points on a circle in a graph G.
+
+    Parameters
+    ----------
+    G : networkx.Graph
+        The network
+    center : node identifier
+        The center around which to construct the circles.
+    radii : iterable of floats
+        The radii of the circles
+    weight : string
+        Edge attribute with respect to which the circles are
+        constructed.
+
+    Returns
+    -------
+    circles : list of tu
+        Circles as a lists of points on edges, which are represented
+        tuples (u, v, ell) of the edge vertices u and v and the linear
+        referencing distance ell.
+    """
     # calculate shortest path lengths to center
     dist = pd.Series(nx.shortest_path_length(G, source=center, weight=weight))
 
@@ -149,29 +171,34 @@ def snap_to_network_nodes(G, points):
 
     return nodes[neighbors]
 
-def snap_to_edge_position(gdf, points, k=3):
+def snap_to_edge_position(gdf, points, k=3, rtree=None):
     """
     Snap given points in the plane to edges in GeoDataFrame of edges.
 
     Parameters
     ----------
-    G : GeoDataframe
+    gdf : GeoDataframe
         The edges of spatial network as a Geodataframe.
     points : array of floats, shape (M, 2)
         The cartesian coordinates of the points to be snapped.
+    k : integer, optional
+        Number of nearest edges to consider.
 
     Returns
     -------
-    neighbors : integer or array of integers, shape (M,)
-
+    nearest_edges : list of integers, length M
+        Indices of nearest edges in the GeoDataframe.
+    refdistances : list of floats, length M
+        Linear referencing distances of points along nearest edge.
     """
     X, Y = points.T
     geom = gdf["geometry"]
 
-    # build the r-tree spatial index by position for subsequent iloc
-    rtree = RTreeIndex()
-    for pos, bounds in enumerate(geom.bounds.values):
-        rtree.insert(pos, bounds)
+    # If not passed, build the r-tree spatial index by position for subsequent iloc
+    if rtree == None:
+        rtree = RTreeIndex()
+        for pos, bounds in enumerate(geom.bounds.values):
+            rtree.insert(pos, bounds)
 
     # use r-tree to find possible nearest neighbors, one point at a time,
     # then minimize euclidean distance from point to the possible matches
@@ -188,6 +215,7 @@ def snap_to_edge_position(gdf, points, k=3):
 
 
 def get_barycentric_node(G):
+    "Get node closest to the barycenter of node positions of G."
     pos = nx.get_node_attributes(G, 'pos')
     barycenter = np.mean(np.array(list(pos.values())), axis=0)
 
