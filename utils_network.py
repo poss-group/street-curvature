@@ -4,6 +4,7 @@ import networkx as nx
 from scipy.spatial import KDTree
 from rtree.index import Index as RTreeIndex
 from shapely.geometry import Point, LineString
+import pandas as pd
 import geopandas as gpd
 
 def calc_row_idx(k, n):
@@ -34,6 +35,53 @@ def condensed_to_square(k, n):
     i = calc_row_idx(k, n)
     j = calc_col_idx(k, i, n)
     return i, j
+
+def subdivide_edge(G, u, v, positions_on_edge, weight):
+    N = G.number_of_nodes()
+    M = len(positions_on_edge)
+    pos = nx.get_node_attributes(G, "pos")
+    edge_attributes = G[u][v]
+    direction = (pos[v] - pos[u]) / edge_attributes[weight]
+    new_nodes = [(N+i+1,
+                  {"pos": pos[u]+l*direction}) for i, l in enumerate(positions_on_edge)]
+    G.add_nodes_from(new_nodes)
+    path = [u] + list(range(N+1, N+M+1)) + [v]
+    nx.add_path(G, path)
+    G.remove_edge(u, v)
+
+def get_circles(G, center, radii, weight):
+    # calculate shortest path lengths to center
+    dist = pd.Series(nx.shortest_path_length(G, source=center, weight=weight))
+
+    # get edge data
+    u, v, w = zip(*G.edges(data=True))
+    u = np.array(u)
+    v = np.array(v)
+    w = np.array([item[weight] for item in w])
+    du = np.array(dist[u])
+    dv = np.array(dist[v])
+    dmin = np.minimum(du, dv)
+    dmax = np.maximum(du, dv)
+    dmaxB = 0.5 * (du + dv + w)
+    start = u * (du < dv) + v * (du >= dv)
+    end = v * (du < dv) + u * (du >= dv)
+
+    # loop through radii
+    circles = []
+    for R in radii:
+        l1 = R - dmin
+        l2 = dmax - dmin + w - l1
+        mask1 = dmin < R
+        mask2 = dmax >= R
+        mask3 = dmaxB >= R
+        typeA = mask1 * mask2
+        typeB = mask1 * ~mask2 * mask3
+        circles.append(list(zip(start[typeA], end[typeA],
+                                np.array([l1[typeA]]).T)) +
+                       list(zip(start[typeB], end[typeB], np.array([l1[typeB], l2[typeB]]).T)))
+
+    return circles
+
 
 def graph_to_gdf(G):
     pos = nx.get_node_attributes(G, 'pos')

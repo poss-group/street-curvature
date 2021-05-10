@@ -270,7 +270,7 @@ def boost_edges(G, edgelist, x):
     x : float
         Factor in [0,1] to boost edges by.
     """
-    speeds_dict = {e: x if e in edgelist else 1 for e in G.edges()}
+    speeds_dict = {e: 1/x if e in edgelist else 1 for e in G.edges()}
     nx.set_edge_attributes(G, speeds_dict, 'speed')
     dist = nx.get_edge_attributes(G, 'dist')
     times = {e: dist[e] / speeds_dict[e] for e in G.edges()}
@@ -409,52 +409,95 @@ if __name__ == "__main__":
     # plt.tight_layout()
     # plt.show()
 
-    # snapping a polygon
+    # # snapping a polygon
+    # np.random.seed(seed=250)
+    # N = 500
+    # points = np.sqrt(N)*np.random.random((N, 2))
+    # G = gabriel(points)
+    # A = get_barycentric_node(G)
+    # n = 6
+    # R = np.sqrt(N) / 3
+    # angles = ((2*np.pi*np.arange(n)) / n)
+    # x = points[A,0] + np.cos(angles)*R
+    # y = points[A,1] + np.sin(angles)*R
+    # B = np.array([x,y]).T
+    # gdf = graph_to_gdf(G)
+    # # first with one nearest edge
+    # ne, refdist = snap_to_edge_position(gdf, B, k=1)
+    # pos = nx.get_node_attributes(G, 'pos')
+    # plt.subplot(121)
+    # plt.axis("equal")
+    # nx.draw_networkx(G, pos=pos, with_labels=False,
+    #                  node_size=40, node_color='black')
+    # B_snapped = []
+    # for j, e in enumerate(ne):
+    #     line = gdf["geometry"][e]
+    #     psnapped = line.interpolate(refdist[j])
+    #     B_snapped.append([psnapped.x, psnapped.y])
+    # B_snapped = np.array(B_snapped)
+    # nx.draw_networkx_nodes(G, pos=pos, nodelist=[A], node_size=60,
+    #                         node_color='red')
+    # plt.scatter(B[:,0], B[:,1], color='orange')
+    # plt.scatter(B_snapped[:,0], B_snapped[:,1], color='red', zorder=3)
+    # # then with more
+    # ne, refdist = snap_to_edge_position(gdf, B, k=3)
+    # pos = nx.get_node_attributes(G, 'pos')
+    # plt.subplot(122)
+    # plt.axis("equal")
+    # nx.draw_networkx(G, pos=pos, with_labels=False,
+    #                  node_size=40, node_color='black')
+    # B_snapped = []
+    # for j, e in enumerate(ne):
+    #     line = gdf["geometry"][e]
+    #     psnapped = line.interpolate(refdist[j])
+    #     B_snapped.append([psnapped.x, psnapped.y])
+    # B_snapped = np.array(B_snapped)
+    # nx.draw_networkx_nodes(G, pos=pos, nodelist=[A], node_size=60,
+    #                         node_color='red')
+    # plt.scatter(B[:,0], B[:,1], color='orange')
+    # plt.scatter(B_snapped[:,0], B_snapped[:,1], color='red', zorder=3)
+    # plt.tight_layout()
+    # plt.show()
+
+    # test circles
     np.random.seed(seed=250)
     N = 500
+    Ncircles = 20
     points = np.sqrt(N)*np.random.random((N, 2))
     G = gabriel(points)
     A = get_barycentric_node(G)
-    n = 6
-    R = np.sqrt(N) / 3
-    angles = ((2*np.pi*np.arange(n)) / n)
-    x = points[A,0] + np.cos(angles)*R
-    y = points[A,1] + np.sin(angles)*R
-    B = np.array([x,y]).T
-    gdf = graph_to_gdf(G)
-    # first with one nearest edge
-    ne, refdist = snap_to_edge_position(gdf, B, k=1)
+    R = np.linspace(0.2, 1, Ncircles) * np.sqrt(N) / 3
+    circles = get_circles(G, A, R, 'dist')
     pos = nx.get_node_attributes(G, 'pos')
     plt.subplot(121)
     plt.axis("equal")
     nx.draw_networkx(G, pos=pos, with_labels=False,
-                     node_size=40, node_color='black')
-    B_snapped = []
-    for j, e in enumerate(ne):
-        line = gdf["geometry"][e]
-        psnapped = line.interpolate(refdist[j])
-        B_snapped.append([psnapped.x, psnapped.y])
-    B_snapped = np.array(B_snapped)
-    nx.draw_networkx_nodes(G, pos=pos, nodelist=[A], node_size=60,
-                            node_color='red')
-    plt.scatter(B[:,0], B[:,1], color='orange')
-    plt.scatter(B_snapped[:,0], B_snapped[:,1], color='red', zorder=3)
-    # then with more
-    ne, refdist = snap_to_edge_position(gdf, B, k=3)
+                      node_size=20, node_color='black')
+    for C in circles:
+        Cpos = []
+        for u, v, lvec in C:
+            direction = (pos[v] - pos[u]) / G[u][v]['dist']
+            for l in lvec:
+                Cpos.append(pos[u]+l*direction)
+        Cpos = np.array(Cpos)
+        plt.scatter(Cpos[:,0], Cpos[:,1])
+    plt.title("Circles with distance metric")
+    # circles with speeds
+    boost_random_fraction(G, 0.3, 0.6)
+    R = np.linspace(0.2, 1, Ncircles) * np.sqrt(N) / 3
+    circles = get_circles(G, A, R, 'time')
     pos = nx.get_node_attributes(G, 'pos')
     plt.subplot(122)
     plt.axis("equal")
     nx.draw_networkx(G, pos=pos, with_labels=False,
-                     node_size=40, node_color='black')
-    B_snapped = []
-    for j, e in enumerate(ne):
-        line = gdf["geometry"][e]
-        psnapped = line.interpolate(refdist[j])
-        B_snapped.append([psnapped.x, psnapped.y])
-    B_snapped = np.array(B_snapped)
-    nx.draw_networkx_nodes(G, pos=pos, nodelist=[A], node_size=60,
-                            node_color='red')
-    plt.scatter(B[:,0], B[:,1], color='orange')
-    plt.scatter(B_snapped[:,0], B_snapped[:,1], color='red', zorder=3)
-    plt.tight_layout()
+                      node_size=20, node_color='black')
+    for C in circles:
+        Cpos = []
+        for u, v, lvec in C:
+            direction = (pos[v] - pos[u]) / G[u][v]['time']
+            for l in lvec:
+                Cpos.append(pos[u]+l*direction)
+        Cpos = np.array(Cpos)
+        plt.scatter(Cpos[:,0], Cpos[:,1])
+    plt.title("Circles with duration metric")
     plt.show()
