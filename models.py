@@ -7,6 +7,7 @@ from scipy.spatial.distance import pdist, squareform
 from scipy.stats import binned_statistic
 from utils import interior_angle
 from utils_network import *
+from copy import deepcopy
 
 
 def polygon_defects(G, Nmax, x, distances, delta=1, sizes=30,
@@ -459,45 +460,111 @@ if __name__ == "__main__":
     # plt.tight_layout()
     # plt.show()
 
-    # test circles
-    np.random.seed(seed=250)
-    N = 500
-    Ncircles = 20
+    # # test circles
+    # np.random.seed(seed=250)
+    # N = 500
+    # Ncircles = 20
+    # points = np.sqrt(N)*np.random.random((N, 2))
+    # G = gabriel(points)
+    # A = get_barycentric_node(G)
+    # R = np.linspace(0.2, 1, Ncircles) * np.sqrt(N) / 3
+    # circles = get_circles(G, A, R, 'dist')
+    # pos = nx.get_node_attributes(G, 'pos')
+    # plt.subplot(121)
+    # plt.axis("equal")
+    # nx.draw_networkx(G, pos=pos, with_labels=False,
+    #                   node_size=20, node_color='black')
+    # for C in circles:
+    #     Cpos = []
+    #     for u, v, lvec in C:
+    #         direction = (pos[v] - pos[u]) / G[u][v]['dist']
+    #         for l in lvec:
+    #             Cpos.append(pos[u]+l*direction)
+    #     Cpos = np.array(Cpos)
+    #     plt.scatter(Cpos[:,0], Cpos[:,1])
+    # plt.title("Circles with distance metric")
+    # # circles with speeds
+    # boost_random_fraction(G, 0.3, 0.6)
+    # R = np.linspace(0.2, 1, Ncircles) * np.sqrt(N) / 3
+    # circles = get_circles(G, A, R, 'time')
+    # pos = nx.get_node_attributes(G, 'pos')
+    # plt.subplot(122)
+    # plt.axis("equal")
+    # nx.draw_networkx(G, pos=pos, with_labels=False,
+    #                   node_size=20, node_color='black')
+    # for C in circles:
+    #     Cpos = []
+    #     for u, v, lvec in C:
+    #         direction = (pos[v] - pos[u]) / G[u][v]['time']
+    #         for l in lvec:
+    #             Cpos.append(pos[u]+l*direction)
+    #     Cpos = np.array(Cpos)
+    #     plt.scatter(Cpos[:,0], Cpos[:,1])
+    # plt.title("Circles with duration metric")
+    # plt.show()
+
+    # test subdivide edges
+    plt.figure(figsize=(10, 9))
+    np.random.seed(seed=220)
+    N = 50
     points = np.sqrt(N)*np.random.random((N, 2))
     G = gabriel(points)
     A = get_barycentric_node(G)
-    R = np.linspace(0.2, 1, Ncircles) * np.sqrt(N) / 3
+    R = np.array([np.sqrt(N) / 4])
     circles = get_circles(G, A, R, 'dist')
     pos = nx.get_node_attributes(G, 'pos')
-    plt.subplot(121)
+    plt.subplot(221)
     plt.axis("equal")
     nx.draw_networkx(G, pos=pos, with_labels=False,
                       node_size=20, node_color='black')
+    H = deepcopy(G)
     for C in circles:
         Cpos = []
         for u, v, lvec in C:
             direction = (pos[v] - pos[u]) / G[u][v]['dist']
+            subdivide_edge(H, u, v, lvec, 'dist')
             for l in lvec:
                 Cpos.append(pos[u]+l*direction)
         Cpos = np.array(Cpos)
         plt.scatter(Cpos[:,0], Cpos[:,1])
-    plt.title("Circles with distance metric")
+    plt.title("dist, scatter")
+    plt.subplot(222)
+    plt.axis("equal")
+    posH = nx.get_node_attributes(H, "pos")
+    circle_nodes = list(range(N+1, H.number_of_nodes()+1))
+    nx.draw_networkx_edges(H, pos=posH, width=0.6)
+    nx.draw_networkx_nodes(H, pos=posH, nodelist=circle_nodes,
+                       node_color='blue', node_size=20)
+    plt.title('dist, subdivide')
+    Cpos_subdivide = np.array(list(posH.values()))[N:]
+    print(Cpos-Cpos_subdivide)
     # circles with speeds
     boost_random_fraction(G, 0.3, 0.6)
-    R = np.linspace(0.2, 1, Ncircles) * np.sqrt(N) / 3
     circles = get_circles(G, A, R, 'time')
     pos = nx.get_node_attributes(G, 'pos')
-    plt.subplot(122)
+    plt.subplot(223)
     plt.axis("equal")
     nx.draw_networkx(G, pos=pos, with_labels=False,
                       node_size=20, node_color='black')
+    H = deepcopy(G)
     for C in circles:
         Cpos = []
         for u, v, lvec in C:
             direction = (pos[v] - pos[u]) / G[u][v]['time']
+            subdivide_edge(H, u, v, lvec, 'time')
             for l in lvec:
                 Cpos.append(pos[u]+l*direction)
         Cpos = np.array(Cpos)
         plt.scatter(Cpos[:,0], Cpos[:,1])
-    plt.title("Circles with duration metric")
+    plt.title("time, scatter")
+    plt.subplot(224)
+    plt.axis("equal")
+    posH = nx.get_node_attributes(H, "pos")
+    circle_nodes = list(range(N+1, H.number_of_nodes()+1))
+    nx.draw_networkx_edges(H, pos=posH, width=0.6)
+    nx.draw_networkx_nodes(H, pos=posH, nodelist=circle_nodes,
+                       node_color='blue', node_size=20)
+    plt.title('time, subdivide')
     plt.show()
+    Cpos_subdivide = np.array(list(posH.values()))[N:]
+    print(Cpos-Cpos_subdivide)

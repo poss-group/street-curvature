@@ -37,16 +37,42 @@ def condensed_to_square(k, n):
     return i, j
 
 def subdivide_edge(G, u, v, positions_on_edge, weight):
+    """
+    Subdivide edge between u and v at specified positions.
+
+    Parameters
+    ----------
+    G : networkx.Graph
+        The graph the edge belongs to.
+    u, v : nodes
+        The edge between nodes u and v is subdivided.
+    positions_on_edge : list of floats
+        List of linear values referencing the positions on the edge.
+    weight : string
+        Edge weight used in the linear referencing. Either 'dist' for
+        Euclidean distance or 'time' for travel time along edge.
+    """
     N = G.number_of_nodes()
     M = len(positions_on_edge)
     pos = nx.get_node_attributes(G, "pos")
     edge_attributes = G[u][v]
-    direction = (pos[v] - pos[u]) / edge_attributes[weight]
-    new_nodes = [(N+i+1,
-                  {"pos": pos[u]+l*direction}) for i, l in enumerate(positions_on_edge)]
+    direction = (pos[v] - pos[u]) / edge_attributes['dist']
+    if weight == 'time':
+        direction *= edge_attributes['speed']
+    new_nodes = [(N+i+1, {"pos": pos[u]+l*direction})
+                 for i, l in enumerate(positions_on_edge)]
     G.add_nodes_from(new_nodes)
     path = [u] + list(range(N+1, N+M+1)) + [v]
     nx.add_path(G, path)
+    for i in range(M+1):
+        v1 = path[i]
+        v2 = path[i+1]
+        d = np.linalg.norm(G.nodes[v1]['pos']-G.nodes[v2]['pos'])
+        G[v1][v2]['dist'] = d
+        if weight == 'time':
+            G[v1][v2]['speed'] = edge_attributes['speed']
+            G[v1][v2]['time'] = d / edge_attributes['speed']
+
     G.remove_edge(u, v)
 
 def get_circles(G, center, radii, weight):
