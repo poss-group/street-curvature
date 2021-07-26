@@ -1,14 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
-import nglpy
 from scipy.spatial import Delaunay, KDTree
 from scipy.spatial.distance import pdist, squareform
 from scipy.stats import binned_statistic
 from utils import interior_angle
 from utils_network import *
 from copy import deepcopy
-
+from nglpy import EmptyRegionGraph as ERG
 
 def polygon_defects(G, Nmax, x, distances, delta=1, sizes=30,
                     offset=16, print_updates=False):
@@ -46,6 +45,8 @@ def get_polygon_coordinates(A, n, R, offset):
     B = np.array([x,y]).T
 
     return B
+
+
 
 def route_length_statistic(G, binwidth=0.2):
     N = G.number_of_nodes()
@@ -136,14 +137,39 @@ def gabriel(points):
 
     return G
 
-def taxicab(m, periodic=False):
+def euclidean_minimum_spanning_tree(points):
+    """
+    Construct the Euclidean minimum spanning tree (EMST)
+    of a set of points.
+
+    Parameters
+    ----------
+    points : array of floats, shape (N, 2)
+        Planar coordinates of points.
+
+    Returns
+    -------
+    G : networkx.Graph
+        The EMST graph.
+        The graph has the node attribute 'pos' with the given point
+        coordinates, and the edge attribute 'dist', which is the
+        Euclidean distance between nodes.
+    """
+    # start with Delaunay triangulation
+    G = delaunay(points)
+    EMST = nx.minimum_spanning_tree(G, weight='dist')
+
+    return EMST
+
+
+def taxicab(size, periodic=False):
     """
     Construct a taxicab (square) lattice.
 
     Parameters
     ----------
-    m : int
-        size of the lattice (mxm)
+    size : int, or tuple (m, n) of ints
+        size of the lattice (mxn)
     periodic : bool
         Whether boundaries are periodic.
 
@@ -155,8 +181,34 @@ def taxicab(m, periodic=False):
         coordinates, and the edge attribute 'dist', which is the
         Euclidean distance between nodes.
     """
-    G = nx.grid_2d_graph(m, m, periodic=periodic)
+    if np.ndim(size) == 0:
+        m = size
+        n = size
+    elif np.ndim(size) == 1:
+        m, n = size
+    G = nx.grid_2d_graph(m, n, periodic=periodic)
     pos = {(i, j): np.array([i, j]) for i, j in G.nodes()}
+    nx.set_node_attributes(G, pos, 'pos')
+    distances = {(e1, e2): 1 for e1, e2 in G.edges()}
+    nx.set_edge_attributes(G, distances, 'dist')
+
+    return nx.convert_node_labels_to_integers(G)
+
+def beta_skeleton(points, beta, p=2):
+
+    # use nglpy to construct graph
+    graph_builder = ERG(beta=beta, p=p)
+    graph_builder.build(points)
+
+    # copy to nx.Graph
+    G = nx.Graph()
+    for u, nb in graph_builder.neighbors().items():
+        for v in nb:
+            G.add_edge(u, v)
+
+    # add position and distance attributes
+    N = points.shape[0]
+    pos = {i: points[i] for i in range(N)}
     nx.set_node_attributes(G, pos, 'pos')
     distances = {(e1, e2): np.linalg.norm(G.nodes[e1]['pos']-G.nodes[e2]['pos'])
                  for e1, e2 in G.edges()}
@@ -164,15 +216,16 @@ def taxicab(m, periodic=False):
 
     return G
 
-def triangular(N, periodic=False):
+
+def triangular(size, periodic=False):
     """
     Construct a triangular lattice, a lattice whose nodes and edges
     are the triangular tiling of the plane.
 
     Parameters
     ----------
-    m : int
-        size of the lattice (mxm)
+    size : int, or tuple (m, n) of ints
+        size of the lattice (mxn)
     periodic : bool
         Whether boundaries are periodic.
 
@@ -184,26 +237,30 @@ def triangular(N, periodic=False):
         coordinates, and the edge attribute 'dist', which is the
         Euclidean distance between nodes.
     """
-    G = nx.triangular_lattice_graph(m, m, periodic=periodic)
-    pos = nx.get_node_attributes(G, 'pos')
-    factor = np.sqrt(2/np.sqrt(3))
-    pos_scaled = {k: factor*np.array(v) for k, v in pos.items()}
-    nx.set_node_attributes(G, pos_scaled, 'pos')
-    distances = {(e1, e2): np.linalg.norm(G.nodes[e1]['pos']-G.nodes[e2]['pos'])
-                 for e1, e2 in G.edges()}
+    if np.ndim(size) == 0:
+        m = size
+        n = size
+    elif np.ndim(size) == 1:
+        m, n = size
+    G = nx.triangular_lattice_graph(m, n, periodic=periodic)
+    # pos = nx.get_node_attributes(G, 'pos')
+    # factor = np.sqrt(2/np.sqrt(3))
+    # pos_scaled = {k: factor*np.array(v) for k, v in pos.items()}
+    # nx.set_node_attributes(G, pos_scaled, 'pos')
+    distances = {(e1, e2): 1 for e1, e2 in G.edges()}
     nx.set_edge_attributes(G, distances, 'dist')
 
-    return G
+    return nx.convert_node_labels_to_integers(G)
 
-def hexagonal(N, periodic=False):
+def hexagonal(size, periodic=False):
     """
     Construct a hexagonal lattice, a lattice whose nodes and edges
     are the hexagonal tiling of the plane.
 
     Parameters
     ----------
-    m : int
-        size of the lattice (mxm)
+    size : int, or tuple (m, n) of ints
+        size of the lattice (mxn)
     periodic : bool
         Whether boundaries are periodic.
 
@@ -215,16 +272,96 @@ def hexagonal(N, periodic=False):
         coordinates, and the edge attribute 'dist', which is the
         Euclidean distance between nodes.
     """
-    G = nx.hexagonal_lattice_graph(m, m, periodic=periodic)
-    pos = nx.get_node_attributes(G, 'pos')
-    factor = 2 * 3**(-0.75)
-    pos_scaled = {k: factor*np.array(v) for k, v in pos.items()}
-    nx.set_node_attributes(G, pos_scaled, 'pos')
-    distances = {(e1, e2): np.linalg.norm(G.nodes[e1]['pos']-G.nodes[e2]['pos'])
-                 for e1, e2 in G.edges()}
+    if np.ndim(size) == 0:
+        m = size
+        n = size
+    elif np.ndim(size) == 1:
+        m, n = size
+    G = nx.hexagonal_lattice_graph(m, n, periodic=periodic)
+    # pos = nx.get_node_attributes(G, 'pos')
+    # factor = 2 * 3**(-0.75)
+    # pos_scaled = {k: factor*np.array(v) for k, v in pos.items()}
+    # nx.set_node_attributes(G, pos_scaled, 'pos')
+    distances = {(e1, e2): 1 for e1, e2 in G.edges()}
     nx.set_edge_attributes(G, distances, 'dist')
 
-    return G
+    return nx.convert_node_labels_to_integers(G)
+
+def taxicab_with_subgrid(size, spacing, x, periodic=False):
+    """
+    Construct a taxicab (square) lattice with a faster subgrid.
+
+    Parameters
+    ----------
+    size : int, or tuple (m, n) of ints
+        size of the lattice (mxn)
+    spacing : int, or tuple (Lx, Ly) of ints
+        spacing of the faster subgrid
+    x : float
+        Boost parameter, speed is 1/x.
+    periodic : bool
+        Whether boundaries are periodic.
+
+    Returns
+    -------
+    G : networkx.Graph
+        The lattice represented as a networkx.Graph
+        The graph has the node attribute 'pos' with the given point
+        coordinates, and the edge attribute 'dist', which is the
+        Euclidean distance between nodes.
+    """
+    if np.ndim(size) == 0:
+        m = size
+        n = size
+    elif np.ndim(size) == 1:
+        m, n = size
+    if np.ndim(spacing) == 0:
+        Lx = spacing
+        Ly = spacing
+    elif np.ndim(spacing) == 1:
+        Lx, Ly = spacing
+    G = nx.grid_2d_graph(m, n, periodic=periodic)
+    pos = {(i, j): np.array([i, j]) for i, j in G.nodes()}
+    nx.set_node_attributes(G, pos, 'pos')
+    distances = {(e1, e2): 1 for e1, e2 in G.edges()}
+    nx.set_edge_attributes(G, distances, 'dist')
+
+    is_on_subgrid = lambda n : True if (n[0]%Lx == 0 or n[1]%Ly == 0) else False
+    edge_speed = lambda u, v : 1/x if (is_on_subgrid(u) and is_on_subgrid(v)) else 1
+    speeds = {(u, v): edge_speed(u, v) for u, v in G.edges()}
+    nx.set_edge_attributes(G, speeds, 'speed')
+    times = {e: (distances[e] / speeds[e]) for e in G.edges()}
+    nx.set_edge_attributes(G, times, 'time')
+
+    return nx.convert_node_labels_to_integers(G)
+
+def taxicab_village_grid(m, n, size, spacing, boost):
+    G = nx.Graph()
+    inter_village_roads = []
+    ddict = {'dist': spacing-2*size, 'speed': 1/boost, 'time': boost*(spacing-2*size)}
+    for i in range(m):
+        for j in range(n):
+            village = nx.grid_2d_graph(2*size+1, 2*size+1)
+            rename = {v: (v[0]+i*spacing, v[1]+j*spacing) for v in village.nodes()}
+            nx.relabel_nodes(village, rename, copy=False)
+            G = nx.compose(G, village)
+            inter_village_roads += [((i*spacing+size, k*spacing+2*size),
+                                     (i*spacing+size, (k+1)*spacing),
+                                     ddict) for k in range(n-1)]
+            inter_village_roads += [((k*spacing+2*size, j*spacing+size),
+                                     ((k+1)*spacing, j*spacing+size),
+                                      ddict) for k in range(m-1)]
+
+    pos = {(i, j): np.array([i, j]) for i, j in G.nodes()}
+    nx.set_node_attributes(G, pos, 'pos')
+
+    nx.set_edge_attributes(G, 1, 'dist')
+    nx.set_edge_attributes(G, 1, 'speed')
+    nx.set_edge_attributes(G, 1, 'time')
+
+    G.add_edges_from(inter_village_roads)
+
+    return nx.convert_node_labels_to_integers(G)
 
 def assign_uniform_speeds(G, umin, umax):
     """
@@ -304,7 +441,14 @@ def boost_random_fraction(G, phi, x):
 
     return actual_fraction
 
+def boost_path(G, path, x):
+    u = path[:-1]
+    v = path[1:]
+    edge_list = list(zip(u, v))
+    boost_edges(G, edge_list, x)
+
 if __name__ == "__main__":
+    np.random.seed(seed=42)
     # test polygon snapping
     # N = 500
     # n = 5
@@ -406,98 +550,100 @@ if __name__ == "__main__":
     # plt.tight_layout()
     # plt.show()
 
-    # snapping a polygon
-    np.random.seed(seed=250)
-    N = 500
-    points = np.sqrt(N)*np.random.random((N, 2))
-    G = gabriel(points)
-    A = get_barycentric_node(G)
-    n = 6
-    R = np.sqrt(N) / 3
-    angles = ((2*np.pi*np.arange(n)) / n)
-    x = points[A,0] + np.cos(angles)*R
-    y = points[A,1] + np.sin(angles)*R
-    B = np.array([x,y]).T
-    gdf = graph_to_gdf(G)
-    # first with one nearest edge
-    ne, refdist = snap_to_edge_position(gdf, B, k=1)
-    pos = nx.get_node_attributes(G, 'pos')
-    plt.subplot(121)
-    plt.axis("equal")
-    nx.draw_networkx(G, pos=pos, with_labels=False,
-                     node_size=40, node_color='black')
-    B_snapped = []
-    for j, e in enumerate(ne):
-        line = gdf["geometry"][e]
-        psnapped = line.interpolate(refdist[j])
-        B_snapped.append([psnapped.x, psnapped.y])
-    B_snapped = np.array(B_snapped)
-    nx.draw_networkx_nodes(G, pos=pos, nodelist=[A], node_size=60,
-                            node_color='red')
-    plt.scatter(B[:,0], B[:,1], color='orange')
-    plt.scatter(B_snapped[:,0], B_snapped[:,1], color='red', zorder=3)
-    # then with more
-    ne, refdist = snap_to_edge_position(gdf, B, k=3)
-    pos = nx.get_node_attributes(G, 'pos')
-    plt.subplot(122)
-    plt.axis("equal")
-    nx.draw_networkx(G, pos=pos, with_labels=False,
-                     node_size=40, node_color='black')
-    B_snapped = []
-    for j, e in enumerate(ne):
-        line = gdf["geometry"][e]
-        psnapped = line.interpolate(refdist[j])
-        B_snapped.append([psnapped.x, psnapped.y])
-    B_snapped = np.array(B_snapped)
-    nx.draw_networkx_nodes(G, pos=pos, nodelist=[A], node_size=60,
-                            node_color='red')
-    plt.scatter(B[:,0], B[:,1], color='orange')
-    plt.scatter(B_snapped[:,0], B_snapped[:,1], color='red', zorder=3)
-    plt.tight_layout()
-    plt.show()
-
-    # # test circles
+    # # snapping a polygon
     # np.random.seed(seed=250)
     # N = 500
-    # Ncircles = 20
     # points = np.sqrt(N)*np.random.random((N, 2))
     # G = gabriel(points)
     # A = get_barycentric_node(G)
-    # R = np.linspace(0.2, 1, Ncircles) * np.sqrt(N) / 3
-    # circles = get_circles(G, A, R, 'dist')
+    # n = 6
+    # R = np.sqrt(N) / 3
+    # angles = ((2*np.pi*np.arange(n)) / n)
+    # x = points[A,0] + np.cos(angles)*R
+    # y = points[A,1] + np.sin(angles)*R
+    # B = np.array([x,y]).T
+    # gdf = graph_to_gdf(G)
+    # # first with one nearest edge
+    # ne, refdist = snap_to_edge_position(gdf, B, k=1)
     # pos = nx.get_node_attributes(G, 'pos')
     # plt.subplot(121)
     # plt.axis("equal")
     # nx.draw_networkx(G, pos=pos, with_labels=False,
-    #                   node_size=20, node_color='black')
-    # for C in circles:
-    #     Cpos = []
-    #     for u, v, lvec in C:
-    #         direction = (pos[v] - pos[u]) / G[u][v]['dist']
-    #         for l in lvec:
-    #             Cpos.append(pos[u]+l*direction)
-    #     Cpos = np.array(Cpos)
-    #     plt.scatter(Cpos[:,0], Cpos[:,1])
-    # plt.title("Circles with distance metric")
-    # # circles with speeds
-    # boost_random_fraction(G, 0.3, 0.6)
-    # R = np.linspace(0.2, 1, Ncircles) * np.sqrt(N) / 3
-    # circles = get_circles(G, A, R, 'time')
+    #                  node_size=40, node_color='black')
+    # B_snapped = []
+    # for j, e in enumerate(ne):
+    #     line = gdf["geometry"][e]
+    #     psnapped = line.interpolate(refdist[j])
+    #     B_snapped.append([psnapped.x, psnapped.y])
+    # B_snapped = np.array(B_snapped)
+    # nx.draw_networkx_nodes(G, pos=pos, nodelist=[A], node_size=60,
+    #                         node_color='red')
+    # plt.scatter(B[:,0], B[:,1], color='orange')
+    # plt.scatter(B_snapped[:,0], B_snapped[:,1], color='red', zorder=3)
+    # # then with more
+    # ne, refdist = snap_to_edge_position(gdf, B, k=3)
     # pos = nx.get_node_attributes(G, 'pos')
     # plt.subplot(122)
     # plt.axis("equal")
     # nx.draw_networkx(G, pos=pos, with_labels=False,
-    #                   node_size=20, node_color='black')
-    # for C in circles:
-    #     Cpos = []
-    #     for u, v, lvec in C:
-    #         direction = (pos[v] - pos[u]) / G[u][v]['time']
-    #         for l in lvec:
-    #             Cpos.append(pos[u]+l*direction)
-    #     Cpos = np.array(Cpos)
-    #     plt.scatter(Cpos[:,0], Cpos[:,1])
-    # plt.title("Circles with duration metric")
+    #                  node_size=40, node_color='black')
+    # B_snapped = []
+    # for j, e in enumerate(ne):
+    #     line = gdf["geometry"][e]
+    #     psnapped = line.interpolate(refdist[j])
+    #     B_snapped.append([psnapped.x, psnapped.y])
+    # B_snapped = np.array(B_snapped)
+    # nx.draw_networkx_nodes(G, pos=pos, nodelist=[A], node_size=60,
+    #                         node_color='red')
+    # plt.scatter(B[:,0], B[:,1], color='orange')
+    # plt.scatter(B_snapped[:,0], B_snapped[:,1], color='red', zorder=3)
+    # plt.tight_layout()
     # plt.show()
+
+    # test circles
+    import matplotlib.cm as cm
+    np.random.seed(seed=250)
+    N = 500
+    Ncircles = 20
+    colors = cm.viridis(np.linspace(0, 1, Ncircles))
+    points = np.sqrt(N)*np.random.random((N, 2))
+    G = gabriel(points)
+    A = get_barycentric_node(G)
+    R = np.linspace(0.2, 1, Ncircles) * np.sqrt(N) / 3
+    circles = get_circles(G, A, R, 'dist')
+    pos = nx.get_node_attributes(G, 'pos')
+    plt.subplot(121)
+    plt.axis("equal")
+    nx.draw_networkx(G, pos=pos, with_labels=False,
+                      node_size=20, node_color='black')
+    for j, C in enumerate(circles):
+        Cpos = []
+        for u, v, lvec in C:
+            direction = (pos[v] - pos[u]) / G[u][v]['dist']
+            for l in lvec:
+                Cpos.append(pos[u]+l*direction)
+        Cpos = np.array(Cpos)
+        plt.scatter(Cpos[:,0], Cpos[:,1], color=colors[j])
+    plt.title("Circles with distance metric")
+    # circles with speeds
+    boost_random_fraction(G, 0.3, 0.6)
+    R = np.linspace(0.2, 1, Ncircles) * np.sqrt(N) / 3
+    circles = get_circles(G, A, R, 'time')
+    pos = nx.get_node_attributes(G, 'pos')
+    plt.subplot(122)
+    plt.axis("equal")
+    nx.draw_networkx(G, pos=pos, with_labels=False,
+                      node_size=20, node_color='black')
+    for j, C in enumerate(circles):
+        Cpos = []
+        for u, v, lvec in C:
+            direction = (pos[v] - pos[u]) / G[u][v]['time']
+            for l in lvec:
+                Cpos.append(pos[u]+l*direction)
+        Cpos = np.array(Cpos)
+        plt.scatter(Cpos[:,0], Cpos[:,1], color=colors[j])
+    plt.title("Circles with duration metric")
+    plt.show()
 
     # # test subdivide edges
     # plt.figure(figsize=(10, 9))
@@ -564,3 +710,57 @@ if __name__ == "__main__":
     # plt.show()
     # Cpos_subdivide = np.array(list(posH.values()))[N:]
     # print(Cpos-Cpos_subdivide)
+
+    # # test EMST
+    # np.random.seed(seed=42)
+    # N = 100
+    # points = np.random.random((N, 2))
+    # G = euclidean_minimum_spanning_tree(points)
+    # pos = nx.get_node_attributes(G, 'pos')
+    # plt.figure(figsize=(10, 9))
+    # plt.axis("equal")
+    # nx.draw(G, pos=pos, node_size=40)
+    # plt.show()
+
+    # # compare two methods to construct Gabriel graph
+    # np.random.seed(seed=42)
+    # N = 100
+    # points = np.random.random((N, 2))
+    # G1 = gabriel(points)
+    # pos = nx.get_node_attributes(G1, 'pos')
+    # G2 = beta_skeleton(points, 1)
+    # plt.subplot(121)
+    # plt.axis("equal")
+    # plt.title("Own Gabriel graph implementation")
+    # nx.draw(G1, pos=nx.get_node_attributes(G1, 'pos'), node_size=40)
+    # plt.subplot(122)
+    # plt.axis("equal")
+    # plt.title("Nglpy's Gabriel graph implementation")
+    # nx.draw(G2, pos=nx.get_node_attributes(G2, 'pos'), node_size=40)
+    # plt.tight_layout()
+    # plt.show()
+
+    # # test taxicab with subgrid
+    # G = taxicab_with_subgrid(13, 3, 0.5)
+    # plt.figure(figsize=(10, 9))
+    # plt.axis("equal")
+    # u, v, speeds = zip(*G.edges(data='speed'))
+    # el = list(zip(u, v))
+    # c = list(speeds)
+    # pos = nx.get_node_attributes(G, 'pos')
+    # nx.draw_networkx_nodes(G, pos=pos, node_size=30)
+    # nx.draw_networkx_edges(G, pos=pos, edgelist=el, edge_color=c)
+    # plt.show()
+
+    # # test village grid
+    # G = taxicab_village_grid(3, 2, 2, 10, 0.5)
+    # pos = nx.get_node_attributes(G, 'pos')
+    # plt.figure()
+    # plt.axis("equal")
+    # u, v, speeds = zip(*G.edges(data='speed'))
+    # el = list(zip(u, v))
+    # c = list(speeds)
+    # pos = nx.get_node_attributes(G, 'pos')
+    # nx.draw_networkx_nodes(G, pos=pos, node_size=30)
+    # nx.draw_networkx_edges(G, pos=pos, edgelist=el, edge_color=c)
+    # plt.show()

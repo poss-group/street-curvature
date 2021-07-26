@@ -1,5 +1,6 @@
 import numpy as np
-from scipy.spatial import Delaunay
+from scipy.spatial import Delaunay, Voronoi
+from shapely.geometry import Polygon, Point
 
 def heron(a, b, c):
     """
@@ -524,3 +525,15 @@ def hmesh(size, a, offset):
     boundary = np.unique(tri.convex_hull.flatten())
 
     return points, tri.simplices, boundary
+
+def get_voronoi_cell_areas(points, boundary_poly):
+    v = Voronoi(points)
+    areas = []
+    for i, reg_num in enumerate(v.point_region):
+        indices = v.regions[reg_num]
+        if -1 in indices:
+            # cell has infinite ridges
+            weights.append()
+        else:
+            cell = Polygon(v.vertices[indices])
+            weights.append(boundary_poly.intersection(cell).area)
