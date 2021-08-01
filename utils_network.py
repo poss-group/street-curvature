@@ -11,9 +11,13 @@ from scipy.integrate import cumtrapz
 from copy import deepcopy
 import multiprocessing as mp
 from scipy.interpolate import PchipInterpolator
+from scipy.sparse.linalg import eigsh
 
 def overlap(t, left, right):
     return np.minimum(np.maximum(0, t-left), right-left)
+
+def boxcar(t, left, right):
+    return (t >= left) * (t < right)
 
 def params_to_bins(a, b, smax, kind='both'):
     if kind == 'both':
@@ -213,11 +217,11 @@ def volume_growth_edge(G, A, B, distances, times, weight):
 def get_edge_location_curves(G, edge, weight, times):
     edge_data = G.get_edge_data(*edge)
     if 'locations' not in edge_data:
-        return None,
+        return [], []
     else:
         locations = edge_data['locations']
     if locations.size == 0:
-        return []
+        return [], []
 
     A = edge[0]
     B = edge[1]
@@ -250,9 +254,12 @@ def get_edge_location_curves(G, edge, weight, times):
     right = np.array(right)
     t = np.expand_dims(times, axis=(1, 2))
     ramps = overlap(t, left, right)
-    volumes = np.sum(ramps, axis=1)
+    steps = boxcar(t, left, right)
 
-    return [v for v in volumes.T]
+    volumes = np.sum(ramps, axis=1)
+    rates = np.sum(steps, axis=1)
+
+    return [v for v in volumes.T], [r for r in rates.T]
 
 def edge_location_analysis(G, edge, weight, Ninter):
     edge_data = G.get_edge_data(*edge)
@@ -348,9 +355,11 @@ def get_node_curves(G, A, weight, times):
     right = np.array(right)
     t = np.expand_dims(times, axis=-1)
     ramps = overlap(t, left, right)
+    steps = boxcar(t, left, right)
     volume = np.sum(ramps, axis=-1)
+    rate = np.sum(steps, axis=-1)
 
-    return volume
+    return volume, rate
 
 def volume_growth_analysis(G, weight, Ninter):
     # set up and perform mutliprocessing
@@ -401,7 +410,7 @@ def get_volume_growth_curves(G, weight, times):
     results = sma.get()
     pool.close()
     pool.join()
-    node_volumes = list(results)
+    node_volumes = dict(zip(nodes, list(results)))
 
     # volume growth at edge locations
     pool = mp.Pool(cpus)
@@ -763,6 +772,13 @@ def get_effective_dimension_bound(times, volumes):
 
     return np.amax(np.gradient(y, x))
 
+def graph_spectrum(G, weight, k):
+    """
+    Find k smallest eigenvalues of graph laplacian.
+    """
+    L = nx.laplacian_matrix(G, weight=weight).asfptype()
+    return eigsh(L, k=k, which='SM')
+
 def graph_to_gdf(G):
     pos = nx.get_node_attributes(G, 'pos')
 
@@ -915,9 +931,9 @@ if __name__ == "__main__":
     points = np.random.random((N, 2))
     G = gabriel(points)
 
-    # test xml writing
-    assign_uniform_speeds(G, 1, 1.5)
-    graph_to_matsim_xml(G, "test.xml")
+    # # test xml writing
+    # assign_uniform_speeds(G, 1, 1.5)
+    # graph_to_matsim_xml(G, "test.xml")
 
     # # test volume calculation
     # diam = []
@@ -1032,9 +1048,26 @@ if __name__ == "__main__":
     #     plt.plot(times, lbd/len(splines))
     # plt.show()
 
-    # test volume
-    splines, L, diam = volume_growth_edge_sample(G, 10, 1000, 500, 'dist')
-    times = np.linspace(0, diam, 200)
-    for spl in splines:
-        plt.plot(times, spl(times))
+    # # test volume
+    # splines, L, diam = volume_growth_edge_sample(G, 10, 1000, 500, 'dist')
+    # times = np.linspace(0, diam, 200)
+    # for spl in splines:
+    #     plt.plot(times, spl(times))
+    # plt.show()
+
+    # test volume growth rate calculation
+    Ninter = 50
+    diam = get_diameter(G, 'dist')
+    dmax = diam + 2*np.amax(list(nx.get_edge_attributes(G, 'dist').values()))
+    times = np.linspace(0, dmax, Ninter)
+    A = np.sum([w for u, v, w in G.edges(data='dist')])
+
+    node_data, edge_data = get_volume_growth_curves(nx.MultiGraph(G), 'dist', times)
+    plt.figure()
+    vol = np.mean([v for v, r in node_data], axis=0)
+    rates = np.mean([r for v, r in node_data], axis=0)
+    plt.plot(times/dmax, vol/A, label="volume")
+    plt.plot(times/dmax, rates/A, label="volume growth rate")
+    plt.plot(times/dmax, np.gradient(vol, times)/A, label="nuermical volume growth rate")
+    plt.legend()
     plt.show()

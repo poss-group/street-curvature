@@ -1,6 +1,7 @@
 import numpy as np
 from utils_network import *
 from scipy.stats import rv_continuous
+from scipy.interpolate import UnivariateSpline
 
 def wlc(L, lp):
     return 2*lp*(L-lp*(1-np.exp(-L/lp)))
@@ -11,13 +12,18 @@ def RV_minimal_from_graph(G, weight, Ninter, Nmax, weighting='uniform'):
     dmax = diam + 2*np.amax(list(nx.get_edge_attributes(G, weight).values()))
     times = np.linspace(0, dmax, Ninter)
 
-    # calculate volume growths
-    v_nodes, v_edges = get_volume_growth_curves(G, weight, times)
-    volumes = v_nodes
-    for e, v in v_edges.items():
-        if type(v) == list:
-            if len(v) > 0:
-                volumes += v
+    # calculate volume growths and growth rates
+    node_data, edge_data = get_volume_growth_curves(G, weight, times)
+    volumes = []
+    rates = []
+    for v, r in node_data.values():
+        volumes.append(v)
+        rates.append(r)
+    for v, r in edge_data.values():
+        volumes += v
+        rates += r
+    volumes = np.array(volumes)
+    rates = np.array(rates)
 
     # calculate total volume
     A = np.sum([w for u, v, w in G.edges(data=weight)])
@@ -26,14 +32,17 @@ def RV_minimal_from_graph(G, weight, Ninter, Nmax, weighting='uniform'):
     if weighting == 'uniform':
         weights = None
 
-    # interpolate CDFs for different N
+    # interpolate CDFs and PDFs for different N
     CDFinterpolators = {}
+    PDFinterpolators = {}
     u = 1 - volumes/A
-    current_mom = u
+    current_mom = np.ones_like(u)
     for N in np.arange(1, Nmax+1):
+        pdf = N * np.average(current_mom*rates/A, axis=0, weights=weights)
+        current_mom *= u
         cdf = 1 - np.average(current_mom, axis=0, weights=weights)
         CDFinterpolators[N] = PchipInterpolator(times, cdf)
-        current_mom *= u
+        PDFinterpolators[N] = UnivariateSpline(times, pdf)
 
     class minimal_model(rv_continuous):
         def _cdf(self, t, N):
@@ -43,7 +52,7 @@ def RV_minimal_from_graph(G, weight, Ninter, Nmax, weighting='uniform'):
 
         def _pdf(self, t, N):
             N = N[0]
-            spl = CDFinterpolators[N].derivative()
+            spl = PDFinterpolators[N]
             return spl(t)
 
     RV = minimal_model(momtype=0, a=0)
