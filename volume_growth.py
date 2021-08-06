@@ -28,7 +28,6 @@ def growth_rate_at_node(G, A, weight):
     right = np.array(right)
     t = np.expand_dims(times, axis=-1)
     rates = np.sum(boxcar(t, left, right), axis=-1)
-    print(rates[-1])
     coeffs = np.array([np.zeros_like(rates), rates])
     breakpoints = np.concatenate((times, [times[-1]+1]))
 
