@@ -117,7 +117,6 @@ def equally_spaced_edge_position_sample(G, Nsamples, weight):
     v = v[mask]
     bins = np.cumsum(w)
     L = bins[-1]
-    print(L)
 
     # take sample and find edges and positions
     x = (np.arange(Nsamples) + 0.5) * (L/(Nsamples+1))
