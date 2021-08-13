@@ -441,6 +441,20 @@ def boost_random_fraction(G, phi, x):
 
     return actual_fraction
 
+def upgrade_to_ox_graph(G):
+    """
+    Converts undirected simple graph to MultiDiGraph and adds attributes.
+
+    Parameters
+    ----------
+    G : nx.Graph
+        The graph to be converted.
+    """
+    # No streets are oneway in undirected graph
+    nx.add_edge_attribute(G, False, name='oneway')
+
+    G = nx.MultiDiGraph(G)
+
 def boost_path(G, path, x):
     u = path[:-1]
     v = path[1:]

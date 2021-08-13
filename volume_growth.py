@@ -5,7 +5,32 @@ import networkx as nx
 def boxcar(t, left, right):
     return (t >= left) * (t < right)
 
+def get_total_volume(G, weight):
+    w = np.array(list(nx.get_edge_attributes(G, weight).values()))
+    oneway = np.array(list(nx.get_edge_attributes(G, 'oneway').values()))
+
+    return np.sum(oneway * w + 0.5 * ~oneway * w)
+
 def growth_rate_at_node(G, A, weight):
+    """
+    Get the volume growth rate at node A of network G.
+
+    Parameters
+    ----------
+    G : nx.networkx.MultiDiGraph
+       The network, must allow directed and multi-edges. Needs to have
+       a `oneway` edge attribute specifying for which edges the reversed edge
+       is also present.
+    A : int
+        Node ID
+    weight : string
+        Edge weight whose volume growth rate is calculated.
+
+    Returns
+    -------
+    rate : scipy.interpolate.PPoly
+        The volume growth rate as a piecewise constant function.
+    """
     # calculate shortest path lengths
     dist2A = dict(nx.shortest_path_length(G, source=A, weight=weight))
 
@@ -34,6 +59,27 @@ def growth_rate_at_node(G, A, weight):
     return PPoly(coeffs, breakpoints)
 
 def growth_rate_at_edge_positions(G, edge, positions, weight):
+    """
+    Get the volume growth rate at edge positions of network G.
+
+    Parameters
+    ----------
+    G : nx.networkx.MultiDiGraph
+       The network, must allow directed and multi-edges. Needs to have
+       a `oneway` edge attribute specifying for which edges the reversed edge
+       is also present.
+    edge : tuple (u, v, k)
+        The edge identifier.
+    positions : ndarray, 1-D
+        The positions along edge, represented as float in [0,1].
+    weight : string
+        Edge weight whose volume growth rate is calculated.
+
+    Returns
+    -------
+    rates : list of scipy.interpolate.PPoly
+        The volume growth ratse as piecewise constant functions.
+    """
     edge_data = G.get_edge_data(*edge)
     A = edge[0]
     B = edge[1]

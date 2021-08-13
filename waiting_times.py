@@ -3,9 +3,24 @@ from utils_network import *
 from scipy.stats import rv_continuous
 from scipy.interpolate import CubicHermiteSpline
 from volume_growth import *
-from scipy.optimize import newton
+from scipy.optimize import newton, least_squares
 
 def poly_convolve(A, B):
+    """
+    Calculate product of two piecewise polynomials by convolution.
+
+    Parameters
+    ----------
+    A, B : 2-D arrays
+        Coefficient arrays. The sizes of the first axes represent the respective
+        degrees. The size of the second axes must agree, and is the number of segments
+        of the piecewise functions.
+
+    Returns
+    -------
+    C : 2-D array
+        Coefficient array of product of A and B.
+    """
     kA = A.shape[0]
     kB = B.shape[0]
     m = A.shape[1]
@@ -39,6 +54,9 @@ def wlc(L, lp):
     """
     return 2*lp*(L-lp*(1-np.exp(-L/lp)))
 
+def wlc_derivative_wrt_lp(L, lp):
+    return (np.exp(-L/lp)*(L + 2*lp) + L - 2*lp) / np.sqrt(wlc(L, lp))
+
 def inverse_wlc(r, lp):
     """
     Given a RMS end-to-end distance of a worm-like chain, return its chain length.
@@ -62,6 +80,32 @@ def inverse_wlc(r, lp):
     f2 = lambda t: 2*np.exp(-t/lp)
     return newton(f, r**2, fprime=f1, fprime2=f2)
 
+def lsq_quantile_fit(wt_data, RV, N, Ninter):
+    # data quantiles: sorted array
+    data_quantiles = np.sort(wt_data)
+    n = wt_data.size
+
+    # get model quantiles
+    t = np.linspace(0, RV.tmax, Ninter)
+    cdf = RV.cdf(t, N)
+    model_quantiles = np.interp(np.arange(1, n+1)/n, cdf, t)
+
+    # set up residual function and its Jacobian
+    def f(tp):
+        return np.sqrt(wlc(data_quantiles, tp)) - model_quantiles
+    def jac(tp):
+        return wlc_derivative_wrt_lp(data_quantiles, tp)[:,np.newaxis]
+
+    # intial guess: tp that matches medians
+    # model_median = np.interp(0.5, cdf, t)
+    # med = np.median(wt_data)
+    # x0 = newton(lambda tp : np.sqrt(wlc(med, tp))-model_median,
+    #             np.mean(wt_data),
+    #             fprime = lambda tp : wlc_derivative_wrt_lp(med, tp))
+    x0 = RV.t0 / 2
+
+    return least_squares(f, x0, jac=jac, method='lm')
+
 def get_upper_limit(tmax, tp):
     f = lambda t : wlc(t, tp) - tmax**2
     fprime = lambda t : 2*tp*(1-np.exp(-t/tp))
@@ -69,7 +113,7 @@ def get_upper_limit(tmax, tp):
 
 def draw_distances(rate, size):
     """
-    Draw distance according to a piecewise constant pdf.
+    Draw distances according to a piecewise constant pdf.
 
     Parameters
     ----------
@@ -97,6 +141,29 @@ def draw_distances(rate, size):
     return distances
 
 def get_single_mean_waiting_times_minimal(r, A, Nmax):
+    """
+    Calculate mean waiting time from a piecewise polynomial pdf formed
+    from a piecewise constant volume growth rate.
+
+    Parameters
+    ----------
+    r : scipy.interpolate.PPoly
+        Volume growth rate as a piecewise constant function.
+    A : float
+        Total volume used for normalization.
+    Nmax : int
+        Maximum number of buses for which to calculate the mean waiting time consecutively.
+
+    Returns
+    -------
+    mean_wt : list with length Nmax
+        Mean waiting time for 1, 2, ... , Nmax buses.
+
+    Notes
+    -----
+    This method becomes numerically unstable for larger Nmax (around 10).
+    Use sampling methods in RV_minimal instead.
+    """
     tmax = r.x[-1]
     identity = r.x[:-1]
     identity = np.array([np.ones_like(identity), identity])
@@ -116,10 +183,34 @@ def get_single_mean_waiting_times_minimal(r, A, Nmax):
     return mean_wt
 
 def get_mean_waiting_times_minimal(rates, A, Nmax, weights=None):
+    """
+    Average mean waiting times for a list of volume growth rates.
+
+    Parameters
+    ----------
+    rates : list of scipy.interpolate.PPoly
+        Volume growth rates as a piecewise constant functions.
+    A : float
+        Total volume used for normalization.
+    Nmax : int
+        Maximum number of buses for which to calculate the mean waiting time consecutively.
+    weights : optional, list
+        Weights used for averaging. If `weights=None`, then uniform weights are used.
+
+    Returns
+    -------
+    mean_wt : list with length Nmax
+        Mean waiting time for 1, 2, ... , Nmax buses.
+
+    Notes
+    -----
+    This method becomes numerically unstable for larger Nmax (around 10).
+    Use sampling methods in RV_minimal instead.
+    """
     return np.average([get_single_mean_waiting_times_minimal(r, A, Nmax) for r in rates], weights=weights, axis=0)
 
 
-def RV_minimal(rates, A, weights=None):
+def RV_minimal(rates, weights=None):
     """
     Build a minimal model waiting time random variable from a set of volume growth rates.
 
@@ -127,8 +218,6 @@ def RV_minimal(rates, A, weights=None):
     ----------
     rates : list of scipy.interpolate.PPoly instances
         The volume growth rates as piecewise polynomials.
-    A : float
-        Total volume of the graph.
     weights : array-like, optional
         Weights used for weighted average. Passed directly to numpy.average.
         If `weights=None`, uniform weights are assumed.
@@ -144,6 +233,9 @@ def RV_minimal(rates, A, weights=None):
     for r in rates:
         volumes.append(r.antiderivative())
 
+    # save total volumes
+    total_volumes = [v.c[-1,-1] for v in volumes]
+
     # find maximum waiting time
     tmax = np.amax([r.x[-1] for r in rates])
 
@@ -156,7 +248,8 @@ def RV_minimal(rates, A, weights=None):
     class minimal_model(rv_continuous):
         def __init__(self, **kwargs):
             self.tmax = np.amax([r.x[-1] for r in rates])
-            self.t0 = np.average([average_weight(r)/A for r in rates], weights=weights)
+            self.t0 = np.average([average_weight(r)/A
+                                  for r, A in zip(rates, total_volumes)], weights=weights)
             super().__init__(**kwargs)
 
         def custom_rvs(self, N, size=1):
@@ -168,7 +261,8 @@ def RV_minimal(rates, A, weights=None):
             u, counts = np.unique(locations, return_counts=True)
 
             # draw distances
-            distances = np.concatenate([draw_distances(rates[i], (s, N)) for i, s in zip(u, counts)], axis=0)
+            distances = np.concatenate([draw_distances(rates[i], (s, N))
+                                        for i, s in zip(u, counts)], axis=0)
 
             # waiting times are minima over N distances
             wt = np.amin(distances, axis=1)
@@ -187,18 +281,23 @@ def RV_minimal(rates, A, weights=None):
 
             return distances
 
+        def fancy_ppf(self, q, N):
+            f = lambda t : self._cdf(t, N) - q
+            fder = lambda t : self._pdf(t, N)
+            return newton(f, np.linspace(0, self.tmax, q.size), fprime=fder)
+
         def _cdf(self, t, N):
-            return np.average([1 - (1-v(t)/A)**N for v in volumes],
+            return np.average([1 - (1-v(t)/A)**N for v, A in zip(volumes, total_volumes)],
                               axis=0, weights=weights)
 
         def _pdf(self, t, N):
-            return np.average([N * (1-v(t)/A)**(N-1) * r(t) / A for r, v in zip(rates, volumes)],
+            return np.average([N * (1-v(t)/A)**(N-1) * r(t) / A for r, v, A in zip(rates, volumes, total_volumes)],
                               axis=0, weights=weights)
 
     RV = minimal_model(momtype=0, a=0, b=tmax)
     return RV
 
-def RV_WLC(rates, A, Nknots, weights=None):
+def RV_WLC(rates, weights=None):
     """
     Build a WLC model waiting time random variable from a set of volume growth rates.
 
@@ -206,8 +305,6 @@ def RV_WLC(rates, A, Nknots, weights=None):
     ----------
     rates : list of scipy.interpolate.PPoly instances
         The volume growth rates as piecewise polynomials.
-    A : float
-        Total volume of the graph.
     weights : array-like, optional
         Weights used for weighted average. Passed directly to numpy.average.
         If `weights=None`, uniform weights are assumed.
@@ -222,6 +319,9 @@ def RV_WLC(rates, A, Nknots, weights=None):
     volumes = []
     for r in rates:
         volumes.append(r.antiderivative())
+
+    # save total volumes
+    total_volumes = [v.c[-1,-1] for v in volumes]
 
     # # calculate mean volume (growth rate)
     # x = np.linspace(0, tmax, Nknots)
@@ -242,14 +342,14 @@ def RV_WLC(rates, A, Nknots, weights=None):
 
         def _cdf(self, t, N, tp):
             T = np.sqrt(wlc(t, tp))
-            F = spl(T) / A
-            return 1 - (1-F)**N
+            return np.average([1 - (1-v(T)/A)**N for v, A in zip(volumes, total_volumes)],
+                              axis=0, weights=weights)
 
-        # def _pdf(self, t, N, tp):
-        #     T = np.sqrt(wlc(t, tp))
-        #     F = spl(T) / A
-        #     rate = spl.derivative()(T) / A
-        #     return N * (1-F)*(N-1) * rate *  (tp/T) * (1 - np.exp(-(t/tp)))
+        def _pdf(self, t, N, tp):
+            T = np.sqrt(wlc(t, tp))
+            return np.average([N * (1-v(T)/A)**(N-1) * (r(T)/A) *  (tp/T) * (1 - np.exp(-(t/tp)))
+                               for r, v, A in zip(rates, volumes, total_volumes)]
+                              , axis=0, weights=weights)
 
     RV = WLC_model(momtype=0)
     return RV
@@ -272,7 +372,7 @@ def RV_WLC_from_graph(G, weight, Ninter, Nmax, weighting='uniform', speed='speed
     # calculate total volume
     A = np.sum([w for u, v, w in G.edges(data=weight)])
 
-    # calcualte weights
+    # calculate weights
     if weighting == 'uniform':
         weights = None
 
@@ -312,10 +412,52 @@ def RV_WLC_from_graph(G, weight, Ninter, Nmax, weighting='uniform', speed='speed
     return RV, dmax, v
 
 if __name__ == "__main__":
-    # test WLC inversion
-    r = 50 * np.random.random(100)
-    lp = 50 * np.random.random(50)
-    rnew = np.expand_dims(r, axis=-1) * np.ones_like(lp)
-    L = inverse_wlc(r, lp)
-    plt.scatter(rnew.flatten(), np.sqrt(wlc(L, lp)).flatten())
+    from volume_growth import *
+    from osm import *
+    import osmnx as ox
+    G = ox.graph_from_place("Broitzem", network_type="drive")
+    prepare_graph(G)
+    A = np.sum([w for u, v, w in G.to_undirected().edges(data='travel_time')])
+    Nsamples = 200
+    edge_pos = equally_spaced_edge_position_sample(G, Nsamples, 'length')
+    rates = []
+    for edge, p in edge_pos.items():
+        rates += growth_rate_at_edge_positions(G, edge, p, 'travel_time')
+    RV = RV_minimal(rates)
+
+    # # test WLC inversion
+    # r = 50 * np.random.random(100)
+    # lp = 50 * np.random.random(50)
+    # rnew = np.expand_dims(r, axis=-1) * np.ones_like(lp)
+    # L = inverse_wlc(r, lp)
+    # plt.scatter(rnew.flatten(), np.sqrt(wlc(L, lp)).flatten())
+    # plt.show()
+
+    # # test quantile function
+    # N = 4
+    # q = np.linspace(0.1, 0.9, 9)
+    # plt.plot(q, RV.fancy_ppf(q, N))
+
+    # # test quantiles fitting
+
+    # test data
+    np.random.seed(seed=44)
+    N = 5
+    Ninter = 1000
+    size = 5000
+    Npar = 100
+    noise_level = 0.02 * RV.t0
+    tpvec = RV.t0 * np.logspace(-0.5, 0.5, Npar)
+    x = [np.amin(tpvec), np.amax(tpvec)]
+    tp_fitted = []
+    for tp in tpvec:
+        wt = RV.custom_rvs(N, size=size)
+        # wt += noise_level * np.random.randn(size)
+        wt = inverse_wlc(wt, tp)
+        res = lsq_quantile_fit(wt, RV, N, Ninter)
+        tp_fitted.append(res.x[0])
+    plt.figure()
+    plt.title("LS Quantile Function")
+    plt.scatter(tpvec, tp_fitted)
+    plt.plot(x, x, 'k--')
     plt.show()

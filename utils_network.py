@@ -81,6 +81,62 @@ def condensed_to_square(k, n):
     j = calc_col_idx(k, i, n)
     return i, j
 
+def equally_spaced_edge_position_sample(G, Nsamples, weight):
+    """
+    Sample equally spaced positions on the (undirected)
+    edges of G.
+
+    Parameters
+    ----------
+    G : nx.networkx.MultiDiGraph
+       The network, must allow directed and multi-edges.
+    Nsamples : int
+        Number of samples.
+    weight : string
+        Edge weight
+
+    Returns
+    -------
+    edge_positions : dict
+        Dictionary of edge positions keyed by edge, with 1-D ndarrays
+        as values.
+
+    Notes
+    -----
+    The sample is equally spaced on the directed edges of G, so that opposite
+    edges are not oversampled.
+    """
+    oneway = np.array(list(nx.get_edge_attributes(G, 'oneway').values()))
+    u, v, k, w = zip(*G.edges(data=weight, keys=True))
+    u = np.array(u)
+    v = np.array(v)
+    mask = np.logical_or(oneway, u < v) # avoid double counting of two-way edges
+    k = np.array(k)[mask]
+    w = np.array(w)[mask]
+    u = u[mask]
+    v = v[mask]
+    bins = np.cumsum(w)
+    L = bins[-1]
+    print(L)
+
+    # take sample and find edges and positions
+    x = (np.arange(Nsamples) + 0.5) * (L/(Nsamples+1))
+    x_indices = np.digitize(x, bins)
+    x_positions = (x - bins[x_indices-1]) % L
+
+    # collect positions for each edge
+    edge_positions = {}
+    for idx in np.unique(x_indices):
+        mask = x_indices == idx
+        positions = x_positions[mask] / w[idx]
+        key = (u[idx], v[idx], k[idx])
+        if not G.has_edge(*key):
+            # wrong edge direction
+            key = (v[idx], u[idx], k[idx])
+        edge_positions[key] = positions
+
+    return edge_positions
+
 def subdivide_edge(G, u, v, positions_on_edge, weight):
     """
     Subdivide edge between u and v at specified positions.
@@ -138,7 +194,7 @@ def get_circles(G, center, radii, weight):
 
     Returns
     -------
-    circles : list of tu
+    circles : list of tuples
         Circles as a lists of points on edges, which are represented
         tuples (u, v, ell) of the edge vertices u and v and the linear
         referencing distance ell.
@@ -1055,19 +1111,38 @@ if __name__ == "__main__":
     #     plt.plot(times, spl(times))
     # plt.show()
 
-    # test volume growth rate calculation
-    Ninter = 50
-    diam = get_diameter(G, 'dist')
-    dmax = diam + 2*np.amax(list(nx.get_edge_attributes(G, 'dist').values()))
-    times = np.linspace(0, dmax, Ninter)
-    A = np.sum([w for u, v, w in G.edges(data='dist')])
+    # # test volume growth rate calculation
+    # Ninter = 50
+    # diam = get_diameter(G, 'dist')
+    # dmax = diam + 2*np.amax(list(nx.get_edge_attributes(G, 'dist').values()))
+    # times = np.linspace(0, dmax, Ninter)
+    # A = np.sum([w for u, v, w in G.edges(data='dist')])
 
-    node_data, edge_data = get_volume_growth_curves(nx.MultiGraph(G), 'dist', times)
+    # node_data, edge_data = get_volume_growth_curves(nx.MultiGraph(G), 'dist', times)
+    # plt.figure()
+    # vol = np.mean([v for v, r in node_data], axis=0)
+    # rates = np.mean([r for v, r in node_data], axis=0)
+    # plt.plot(times/dmax, vol/A, label="volume")
+    # plt.plot(times/dmax, rates/A, label="volume growth rate")
+    # plt.plot(times/dmax, np.gradient(vol, times)/A, label="nuermical volume growth rate")
+    # plt.legend()
+    # plt.show()
+
+    # test equally spaced edge sample
+    # P = nx.MultiDiGraph(taxicab((11, 1)))
+    # plt.figure()
+    # for j, pos in enumerate(equally_spaced_edge_position_sample(P, 50, 'dist').values()):
+    #     plt.plot(j+pos, np.zeros_like(pos), 'o')
+    # plt.show()
+    Nsamples = 400
+    edge_pos = equally_spaced_edge_position_sample(nx.MultiDiGraph(G), Nsamples, 'dist')
+    node_pos = nx.get_node_attributes(G, 'pos')
     plt.figure()
-    vol = np.mean([v for v, r in node_data], axis=0)
-    rates = np.mean([r for v, r in node_data], axis=0)
-    plt.plot(times/dmax, vol/A, label="volume")
-    plt.plot(times/dmax, rates/A, label="volume growth rate")
-    plt.plot(times/dmax, np.gradient(vol, times)/A, label="nuermical volume growth rate")
-    plt.legend()
+    plt.axis("equal")
+    nx.draw(G, pos=node_pos, node_size=30)
+    for edge, pos in edge_pos.items():
+        u, v, k = edge
+        direction = (node_pos[v] - node_pos[u])
+        coords = node_pos[u] + (np.expand_dims(direction, axis=1) * pos).T
+        plt.plot(coords[:,0], coords[:,1], 'o')
     plt.show()

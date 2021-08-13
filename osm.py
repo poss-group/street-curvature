@@ -5,26 +5,53 @@ import numpy as np
 import networkx as nx
 from utils_network import *
 from waiting_times import *
+from matplotlib.colors import ListedColormap
 
-# constant dictionary for mapping highway types with speeds
+# constant dictionary for mapping road classes with speeds
 SPEEDS_POSS = {
-    "motorway": 120,
-    "trunk": 80,
-    "primary": 50,
-    "secondary": 50,
-    "tertiary": 50,
-    "unclassified": 30,
-    "residential": 30,
-    "service": 20,
-    "motorway_link": 120,
-    "trunk_link": 80,
-    "primary_link": 50,
-    "secondary_link": 50,
-    "tertiary_link": 50,
-    "living_street": 20,
-    "pedestrian": 30,
-    "road": 30
+    1: 120,
+    2: 80,
+    3: 50,
+    4: 50,
+    5: 50,
+    6: 30,
+    7: 20,
+    8: 20
 }
+
+ROAD_CLASSES = {
+    "motorway": 1,
+    "trunk": 2,
+    "primary": 3,
+    "secondary": 4,
+    "tertiary": 5,
+    "unclassified": 6,
+    "residential": 6,
+    "service": 7,
+    "motorway_link": 1,
+    "trunk_link": 2,
+    "primary_link": 3,
+    "secondary_link": 4,
+    "tertiary_link": 5,
+    "living_street": 8,
+    "pedestrian": 8,
+    "road": 6
+}
+
+roadclass_cmap = ListedColormap(["gray", "yellow", "purple", "orange", "red", "black", "blue", "green"], name="roadclass")
+
+def get_hwy_filter(road_classes):
+    hwy_filter = '[\"highway\"~\"'
+    hwy_types = []
+    for tag, cls in ROAD_CLASSES.items():
+        if cls in road_classes:
+            hwy_types.append(tag)
+    tags = '|'.join(hwy_types)
+    hwy_filter += tags
+    hwy_filter += '\"]'
+
+    return hwy_filter
+
 
 def add_edge_locations(G):
     # project graph
@@ -74,6 +101,41 @@ def get_average_speed(G, weight):
 
     return V
 
+def prepare_graph(G):
+    """
+    Trims to strongly connected graph, computes travel times and
+    converts node labels.
+
+    Parameters
+    ----------
+    G : nx.MultiDiGraph
+        The street network obtained with OSMnx
+
+    Returns
+    -------
+    G : nx.MultiDiGraph
+        Copy of the graph
+    """
+    # remove all but largest strongly connected component
+    largest = max(nx.strongly_connected_components(G), key=len)
+    G.remove_nodes_from(set(G.nodes())-largest)
+
+    # collapse highway types into road classes
+    road_classes = {}
+    for u, v, k, tag in G.edges(data='highway', keys=True):
+        if isinstance(tag, list):
+            cls = min([ROAD_CLASSES[t] for t in tag])
+        else:
+            cls = ROAD_CLASSES[tag]
+        road_classes[(u, v, k)] = cls
+    nx.set_edge_attributes(G, road_classes, name='roadclass')
+
+    # calculate speeds and travel times
+    speeds = {edge: SPEEDS_POSS[cls] for edge, cls in road_classes.items()}
+    nx.set_edge_attributes(G, speeds, name='speed_kph')
+    ox.add_edge_travel_times(G)
+
+    return nx.convert_node_labels_to_integers(G, label_attribute='OSM_ID')
 
 # def volume_growth_analysis(G, weight, Ninter):
 
@@ -81,9 +143,8 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     from volume_growth import *
     G = ox.graph_from_place("Broitzem", network_type="drive")
-    G = nx.convert_node_labels_to_integers(G)
-    ox.add_edge_speeds(G, hwy_speeds=SPEEDS_POSS)
-    ox.add_edge_travel_times(G)
+    G = prepare_graph(G)
+
     A = np.sum([w for u, v, w in G.to_undirected().edges(data='travel_time')])
 
     # # test volume growth with edge locations
@@ -170,7 +231,7 @@ if __name__ == "__main__":
 
     # test custom waiting time sampling
     rates = [growth_rate_at_node(G, n, 'travel_time') for n in G.nodes()]
-    RV = RV_minimal(rates, A)
+    RV = RV_minimal(rates)
     Nsamples = 10000
     N = 4
     wt = RV.custom_rvs(N, size=Nsamples)
@@ -179,7 +240,7 @@ if __name__ == "__main__":
     tmax = np.amax([r.x[-1] for r in rates])
     t = np.linspace(0, tmax, 200)
     plt.plot(t, RV.pdf(t, N))
-    #plt.show()
+    plt.show()
 
     # # compare means: sampling vs integration
     # rates = [growth_rate_at_node(G, n, 'travel_time') for n in G.nodes()]
@@ -216,32 +277,57 @@ if __name__ == "__main__":
     # # test speed calculation
     # print(get_average_speed(G, 'travel_time'))
 
-    # contour plot of waiting times
-    from scipy.special import loggamma, gammainc
-    rates = [growth_rate_at_node(G, n, 'travel_time') for n in G.nodes()]
-    RV = RV_minimal(rates, A)
-    V = get_average_speed(G, 'travel_time')
-    Nmax = 16
-    size = 5000
-    distances = RV.sample_distances(Nmax, size)
-    lpvec = RV.t0 * np.logspace(-1, 1, 50)
-    wt = np.minimum.accumulate(distances, axis=1)
-    wt = inverse_wlc(wt, lpvec)
-    mean_wt = np.mean(wt, axis=0)
-    plt.figure()
-    plt.xlabel(r"$ 2 B {t_p}^2$")
-    plt.ylabel(r"Mean waiting time / persistence time")
-    b = np.arange(1, Nmax+1) * V**2 / get_graph_area("Broitzem")
-    B, Lp = np.meshgrid(b, lpvec, indexing='ij')
-    S = 2 * B * Lp**2 * np.pi
-    for j in range(Nmax):
-        plt.loglog(S[j,:], mean_wt[j,:]/lpvec, 'o-')
-    s = np.logspace(np.log(np.amin(S)), np.log(np.amax(S)), 100, base=np.exp(1))
-    plane_wt = np.exp(s*(1-np.log(s)) + loggamma(s)) * gammainc(s, s)
-    plt.loglog(s, plane_wt, 'k--', label="plane prediction")
-    plt.legend()
+    # # contour plot of waiting times
+    # from scipy.special import loggamma, gammainc
+    # rates = [growth_rate_at_node(G, n, 'travel_time') for n in G.nodes()]
+    # RV = RV_minimal(rates, A)
+    # V = get_average_speed(G, 'travel_time')
+    # Nmax = 16
+    # size = 5000
+    # distances = RV.sample_distances(Nmax, size)
+    # lpvec = RV.t0 * np.logspace(-1, 1, 50)
+    # wt = np.minimum.accumulate(distances, axis=1)
+    # wt = inverse_wlc(wt, lpvec)
+    # mean_wt = np.mean(wt, axis=0)
+    # plt.figure()
+    # plt.xlabel(r"$ 2 B {t_p}^2$")
+    # plt.ylabel(r"Mean waiting time / persistence time")
+    # b = np.arange(1, Nmax+1) * V**2 / get_graph_area("Broitzem")
+    # B, Lp = np.meshgrid(b, lpvec, indexing='ij')
+    # S = 2 * B * Lp**2 * np.pi
+    # for j in range(Nmax):
+    #     plt.loglog(S[j,:], mean_wt[j,:]/lpvec, 'o-')
+    # s = np.logspace(np.log(np.amin(S)), np.log(np.amax(S)), 100, base=np.exp(1))
+    # plane_wt = np.exp(s*(1-np.log(s)) + loggamma(s)) * gammainc(s, s)
+    # plt.loglog(s, plane_wt, 'k--', label="plane prediction")
+    # plt.legend()
 
-    plt.figure()
-    plt.imshow(np.log(mean_wt/lpvec), origin='lower')
+    # plt.figure()
+    # plt.imshow(np.log(mean_wt/lpvec), origin='lower')
 
-    plt.show()
+    # # test fitting
+    # tpvec = RV.t0 * np.logspace(-0.5, 0.5, 3)
+    # RV2 = RV_WLC(rates, A)
+    # for tp in tpvec:
+    #     rvs = inverse_wlc(wt, tp)
+    #     t = np.linspace(0, rvs.max(), 200)
+    #     plt.hist(rvs, bins=50, density=True)
+    #     plt.plot(t, RV2.pdf(t, N, tp))
+    #     plt.show()
+    #     # tp_fit = RV2.fit(rvs[:500], RV.t0, floc=0, fscale=1, fN=4)
+    #     # print("tp = {}, fitted: {}".format(tp, tp_fit))
+
+    # # wrong A in the PPoly??
+    # print("A = {}".format(A))
+    # print("The PPolys give me:")
+    # for r in rates:
+    #     Arate = r.antiderivative()(r.x[-1])
+    #     print("\t {}".format(Arate))
+
+    # # another value of the total volume
+    # Anew = get_total_volume(G, 'travel_time')
+    # print("Anew = {}".format(Anew))
+
+    # # test new version of equally spaced edge sample
+    # print(get_total_volume(G, 'length'))
+    # edge_pos = equally_spaced_edge_position_sample(G, 200, 'length')
