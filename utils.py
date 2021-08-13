@@ -539,7 +539,7 @@ def get_voronoi_cell_areas(points, boundary_poly):
             weights.append(boundary_poly.intersection(cell).area)
 
 def data_cdf(data):
-    x = np.sort(x)
+    x = np.sort(data)
     n = x.size
     y = np.arange(1, n+1) / n
     return x, y
