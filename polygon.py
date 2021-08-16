@@ -1,7 +1,6 @@
 import numpy as np
 import networkx as nx
 import sys, os
-sys.path.append("/home/david/code_repo/osrm-py-master")
 import osrm
 import pandas as pd
 from copy import deepcopy
@@ -88,7 +87,7 @@ def polygon_scan(location, N, R, offset, store_path):
 
     # save data
     np.save(store_path+"/location.npy", location)
-    df.to_pickle(store_path+"/scan_data.pkl")
+    df.to_csv(store_path+"/scan_data.csv")
 
 def model_polygon_scan(G, center, N, R, offset, store_path):
     """

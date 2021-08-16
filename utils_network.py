@@ -17,6 +17,23 @@ def overlap(t, left, right):
     return np.minimum(np.maximum(0, t-left), right-left)
 
 def boxcar(t, left, right):
+    """
+    Vectorized boxcar (rectangle) function.
+
+    Parameters
+    ----------
+    t : ndarray
+        The evaluation points.
+    left : ndarray
+        The left bounds of the rectangles. Must have the same shape as t.
+    right : ndarray
+        The right bounds of the rectangles. Must have the same shape as t.
+
+    Returns
+    -------
+    x : ndarray
+       Boolean, `True` where the evaluation point lies within an interval.
+    """
     return (t >= left) * (t < right)
 
 def params_to_bins(a, b, smax, kind='both'):

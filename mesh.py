@@ -169,8 +169,8 @@ class Mesh(object):
 
     def durations_from_router(self, router, **kwargs):
         """
-        Calculate the distances between mesh points using a the durations
-        returned by arouting machine.
+        Calculate the distances between mesh points using the durations
+        returned by a routing machine.
 
         Parameters
         ----------

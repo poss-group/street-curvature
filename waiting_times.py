@@ -32,7 +32,20 @@ def poly_convolve(A, B):
 
     return np.real(np.fft.ifft(C_fft)).T
 
-def average_weight(rate):
+def mean_pconst(rate):
+    """
+    Mean of a piecewise constant pdf.
+
+    Parameters
+    ----------
+    rate : scipy.interpolate.PPoly object
+        The pdf as a piecewise polynomial. Must have order 1.
+
+    Returns
+    -------
+    E : float
+        The mean of the distribution.
+    """
     return np.sum(rate.c[1,:] *
                   (rate.x[1:]**2 - rate.x[:-1]**2))
 
@@ -85,16 +98,21 @@ def lsq_quantile_fit(wt_data, RV, N, Ninter):
     data_quantiles = np.sort(wt_data)
     n = wt_data.size
 
+    # only retain positive quantiles
+    mask = data_quantiles > 0
+    positive_quantiles = data_quantiles[mask]
+    npositive = np.argmax(mask)
+
     # get model quantiles
     t = np.linspace(0, RV.tmax, Ninter)
     cdf = RV.cdf(t, N)
-    model_quantiles = np.interp(np.arange(1, n+1)/n, cdf, t)
+    model_quantiles = np.interp(np.arange(npositive+1, n+1)/n, cdf, t)
 
     # set up residual function and its Jacobian
     def f(tp):
-        return np.sqrt(wlc(data_quantiles, tp)) - model_quantiles
+        return np.sqrt(wlc(positive_quantiles, tp)) - model_quantiles
     def jac(tp):
-        return wlc_derivative_wrt_lp(data_quantiles, tp)[:,np.newaxis]
+        return wlc_derivative_wrt_lp(positive_quantiles, tp)[:,np.newaxis]
 
     # intial guess: tp that matches medians
     # model_median = np.interp(0.5, cdf, t)
@@ -239,16 +257,10 @@ def RV_minimal(rates, weights=None):
     # find maximum waiting time
     tmax = np.amax([r.x[-1] for r in rates])
 
-    # # calculate mean volume (growth rate)
-    # x = np.linspace(0, tmax, Nknots)
-    # y = np.average([v(x) for v in volumes], weights=weights, axis=0)
-    # dydx = np.average([r(x) for r in rates], weights=weights, axis=0)
-    # spl = CubicHermiteSpline(x, y, dydx)
-
     class minimal_model(rv_continuous):
         def __init__(self, **kwargs):
             self.tmax = np.amax([r.x[-1] for r in rates])
-            self.t0 = np.average([average_weight(r)/A
+            self.t0 = np.average([mean_pconst(r)/A
                                   for r, A in zip(rates, total_volumes)], weights=weights)
             super().__init__(**kwargs)
 
@@ -323,13 +335,6 @@ def RV_WLC(rates, weights=None):
     # save total volumes
     total_volumes = [v.c[-1,-1] for v in volumes]
 
-    # # calculate mean volume (growth rate)
-    # x = np.linspace(0, tmax, Nknots)
-    # y = np.average([v(x) for v in volumes], weights=weights, axis=0)
-    # dydx = np.average([r(x) for r in rates], weights=weights, axis=0)
-    # spl = CubicHermiteSpline(x, y, dydx)
-
-
     class WLC_model(rv_continuous):
         def __init__(self, **kwargs):
             self.tmax = np.amax([r.x[-1] for r in rates])
@@ -353,63 +358,6 @@ def RV_WLC(rates, weights=None):
 
     RV = WLC_model(momtype=0)
     return RV
-
-def RV_WLC_from_graph(G, weight, Ninter, Nmax, weighting='uniform', speed='speed_kph'):
-    # calculate diameter to find interpolation times
-    diam = get_diameter(G, weight)
-    dmax = diam + 2*np.amax(list(nx.get_edge_attributes(G, weight).values()))
-    times = np.linspace(0, dmax, Ninter)
-
-    # calculate volume growths
-    v_nodes, v_edges = get_volume_growth_curves(G, weight, times)
-    volumes = v_nodes
-    for e, v in v_edges.items():
-        if type(v) == list:
-            if len(v) > 0:
-                volumes += v
-
-
-    # calculate total volume
-    A = np.sum([w for u, v, w in G.edges(data=weight)])
-
-    # calculate weights
-    if weighting == 'uniform':
-        weights = None
-
-
-    # interpolate CDFs for different N
-    CDFinterpolators = {}
-    u = 1 - volumes/A
-    current_mom = u
-    for N in np.arange(1, Nmax+1):
-        cdf = 1 - np.average(current_mom, axis=0, weights=weights)
-        CDFinterpolators[N] = PchipInterpolator(times, cdf)
-        current_mom *= u
-
-    # find average speed
-    if speed == "speed_kph":
-        V = np.array(list(nx.get_edge_attributes(G, speed).values()))
-        w = np.array(list(nx.get_edge_attributes(G, weight).values()))
-        V = np.average(V, weights=w) / 3.6
-    if type(speed) is float:
-        V = speed
-
-    class WLC_model(rv_continuous):
-
-        def _cdf(self, t, N, lp):
-            N = N[0]
-            r = np.sqrt(wlc(t*V, lp))
-            spl = CDFinterpolators[N]
-            return spl(r)
-
-        def _pdf(self, t, N, lp):
-            N = N[0]
-            r = np.sqrt(wlc(t*V, lp))
-            spl = CDFinterpolators[N].derivative()
-            return spl(r) * (lp*V/r) * (1 - np.exp(-(t*V/lp)))
-
-    RV = WLC_model(momtype=0, a=0)
-    return RV, dmax, v
 
 if __name__ == "__main__":
     from volume_growth import *

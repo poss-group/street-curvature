@@ -3,9 +3,42 @@ from scipy.interpolate import PPoly
 import networkx as nx
 
 def boxcar(t, left, right):
+    """
+    Vectorized boxcar (rectangle) function.
+
+    Parameters
+    ----------
+    t : ndarray
+        The evaluation points.
+    left : ndarray
+        The left bounds of the rectangles. Must have the same shape as t.
+    right : ndarray
+        The right bounds of the rectangles. Must have the same shape as t.
+
+    Returns
+    -------
+    x : ndarray
+       Boolean, `True` where the evaluation point lies within an interval.
+    """
     return (t >= left) * (t < right)
 
 def get_total_volume(G, weight):
+    """
+    Get sum of edge weights in a MultiDiGraph.
+
+    Parameters
+    ----------
+    G : networkx.MultiDiGraph
+        The graph. Must have a `oneway` edge attribute. If `oneway = False`,
+        the edge weight is only counted half.
+    weight : string
+        The edge weight to sum up.
+
+    Returns
+    -------
+    A : float
+        The sum of weights.
+    """
     w = np.array(list(nx.get_edge_attributes(G, weight).values()))
     oneway = np.array(list(nx.get_edge_attributes(G, 'oneway').values()))
 

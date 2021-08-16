@@ -538,7 +538,42 @@ def get_voronoi_cell_areas(points, boundary_poly):
             cell = Polygon(v.vertices[indices])
             weights.append(boundary_poly.intersection(cell).area)
 
+def get_random_point_in_polygon(poly):
+    """
+    Get point sampled uniformly from a polygon.
+
+    Parameters
+    ----------
+    poly : shapely.geometry.Polygon
+        The polygon to sample from
+
+    Return
+    ------
+    p : shapely.geometry.Point
+        The random point.
+    """
+    minx, miny, maxx, maxy = poly.bounds
+    while True:
+        p = Point(np.random.uniform(minx, maxx), np.random.uniform(miny, maxy))
+        if poly.contains(p):
+            return p
+
 def data_cdf(data):
+    """
+    Get the CDF of dataseries.
+
+    Parameters
+    ----------
+    data : ndarray, shape (n,)
+        The array of observations.
+
+    Returns
+    -------
+    x : ndarray, shape (n,)
+        The sorted input array
+    y : ndarray, shape (n,)
+        The CDF.
+    """
     x = np.sort(data)
     n = x.size
     y = np.arange(1, n+1) / n
