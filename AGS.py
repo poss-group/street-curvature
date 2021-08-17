@@ -3,8 +3,6 @@ import sys, csv, os
 sys.path.append('/home/david/code_repo/osrm-py-master/')
 import osrm
 
-# random commment
-
 from utils import interior_angle, heron, mercator, get_tripmeasures, asymmetry_parameter
 from scipy.spatial import Delaunay, ConvexHull
 
