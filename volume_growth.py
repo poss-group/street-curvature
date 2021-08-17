@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.interpolate import PPoly
 import networkx as nx
+import multiprocessing as mp
+from utils_network import equally_spaced_edge_position_sample
 
 def boxcar(t, left, right):
     """
@@ -111,7 +113,7 @@ def growth_rate_at_edge_positions(G, edge, positions, weight):
     Returns
     -------
     rates : list of scipy.interpolate.PPoly
-        The volume growth ratse as piecewise constant functions.
+        The volume growth rates as piecewise constant functions.
     """
     edge_data = G.get_edge_data(*edge)
     A = edge[0]
@@ -177,3 +179,39 @@ def growth_rate_at_edge_positions(G, edge, positions, weight):
         interpolators.append(PPoly(coeffs, breakpoints))
 
     return interpolators
+
+def volume_growth(G, weight, Npos, pos_weight=None):
+    """
+    Do a volume growth analysis of a network.
+
+    Parameters
+    ----------
+    G : networkx.MultiDiGraph
+        The network. Must have a `oneway` edge attribute.
+    weight : string
+        The edge weight whose volume growth in calculated.
+    Ninter : int
+        The number of edge positions for which to calculate volume growth.
+    pos_weight : str, optional
+        The edge weight used for the equally spaced edge position sample.
+        If `pos_weight=None`, the `weight` is used.
+
+    Returns
+    -------
+    rates : list of scipy.interpolate.PPoly
+        The volume growth rates as piecewise constant functions.
+    """
+    # get edge positions
+    w = weight if pos_weight is None else pos_weight
+    edge_pos = equally_spaced_edge_position_sample(G, Npos, w)
+
+    # set up multiprocessing
+    cpus = mp.cpu_count() - 1
+    pool = mp.Pool(cpus)
+    params = [(G, edge, pos, weight) for edge, pos in edge_pos.items()]
+    sma = pool.starmap_async(growth_rate_at_edge_positions, params)
+    results = sma.get()
+    pool.close()
+    pool.join()
+
+    return sum(results, [])

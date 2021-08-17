@@ -451,9 +451,9 @@ def upgrade_to_ox_graph(G):
         The graph to be converted.
     """
     # No streets are oneway in undirected graph
-    nx.add_edge_attribute(G, False, name='oneway')
+    nx.set_edge_attributes(G, False, name='oneway')
 
-    G = nx.MultiDiGraph(G)
+    return nx.MultiDiGraph(G)
 
 def boost_path(G, path, x):
     u = path[:-1]

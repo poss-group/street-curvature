@@ -93,28 +93,31 @@ def inverse_wlc(r, lp):
     f2 = lambda t: 2*np.exp(-t/lp)
     return newton(f, r**2, fprime=f1, fprime2=f2)
 
-def lsq_quantile_fit(wt_data, RV, N, Ninter):
+def lsq_quantile_fit(wt_data, RV, N, Ninter, q='all'):
+    # sample model CDF for interpolation
+    t = np.linspace(0, RV.tmax, Ninter)
+    cdf = RV.cdf(t, N)
+
     # data quantiles: sorted array
-    data_quantiles = np.sort(wt_data)
-    n = wt_data.size
+    if q == 'all':
+        data_quantiles = np.sort(wt_data)
+        n = wt_data.size
+        model_quantiles = np.interp(np.arange(1, n+1)/n, cdf, t)
+
+    else:
+        data_quantiles = np.quantile(wt_data, q)
+        model_quantiles = np.interp(q, cdf, t)
 
     # # only retain positive quantiles
     # mask = data_quantiles > 0
     # positive_quantiles = data_quantiles[mask]
     # npositive = np.argmax(mask)
 
-    # get model quantiles
-    npositive = 0
-    positive_quantiles = data_quantiles
-    t = np.linspace(0, RV.tmax, Ninter)
-    cdf = RV.cdf(t, N)
-    model_quantiles = np.interp(np.arange(npositive+1, n+1)/n, cdf, t)
-
     # set up residual function and its Jacobian
     def f(tp):
-        return np.sqrt(wlc(positive_quantiles, tp)) - model_quantiles
+        return np.sqrt(wlc(data_quantiles, tp)) - model_quantiles
     def jac(tp):
-        return wlc_derivative_wrt_lp(positive_quantiles, tp)[:,np.newaxis]
+        return wlc_derivative_wrt_lp(data_quantiles, tp)[:,np.newaxis]
 
     # intial guess: tp that matches medians
     # model_median = np.interp(0.5, cdf, t)
@@ -124,7 +127,7 @@ def lsq_quantile_fit(wt_data, RV, N, Ninter):
     #             fprime = lambda tp : wlc_derivative_wrt_lp(med, tp))
     x0 = RV.t0 / 2
 
-    return least_squares(f, x0, jac=jac, method='lm'), positive_quantiles, model_quantiles
+    return least_squares(f, x0, jac=jac, method='lm'), data_quantiles, model_quantiles
 
 def get_upper_limit(tmax, tp):
     f = lambda t : wlc(t, tp) - tmax**2
