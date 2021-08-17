@@ -98,12 +98,14 @@ def lsq_quantile_fit(wt_data, RV, N, Ninter):
     data_quantiles = np.sort(wt_data)
     n = wt_data.size
 
-    # only retain positive quantiles
-    mask = data_quantiles > 0
-    positive_quantiles = data_quantiles[mask]
-    npositive = np.argmax(mask)
+    # # only retain positive quantiles
+    # mask = data_quantiles > 0
+    # positive_quantiles = data_quantiles[mask]
+    # npositive = np.argmax(mask)
 
     # get model quantiles
+    npositive = 0
+    positive_quantiles = data_quantiles
     t = np.linspace(0, RV.tmax, Ninter)
     cdf = RV.cdf(t, N)
     model_quantiles = np.interp(np.arange(npositive+1, n+1)/n, cdf, t)
@@ -122,7 +124,7 @@ def lsq_quantile_fit(wt_data, RV, N, Ninter):
     #             fprime = lambda tp : wlc_derivative_wrt_lp(med, tp))
     x0 = RV.t0 / 2
 
-    return least_squares(f, x0, jac=jac, method='lm')
+    return least_squares(f, x0, jac=jac, method='lm'), positive_quantiles, model_quantiles
 
 def get_upper_limit(tmax, tp):
     f = lambda t : wlc(t, tp) - tmax**2
