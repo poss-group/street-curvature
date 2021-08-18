@@ -3,7 +3,7 @@ from utils_network import *
 from scipy.stats import rv_continuous
 from scipy.interpolate import CubicHermiteSpline
 from volume_growth import *
-from scipy.optimize import newton, least_squares
+from scipy.optimize import newton, least_squares, brentq
 
 def poly_convolve(A, B):
     """
@@ -364,6 +364,64 @@ def RV_WLC(rates, weights=None):
     RV = WLC_model(momtype=0)
     return RV
 
+def MLE_2par_weibull(x):
+    # precalculate stuff
+    logx = np.log(x)
+    logx2 = logx * logx
+    def g(nu):
+        p = x**nu
+        return np.mean(logx) + 1/nu - np.sum(p*logx) / np.sum(p)
+
+    def gprime(nu):
+        p = x**nu
+        return (-1/nu**2 - np.sum(p*logx2) / np.sum(p)
+                + (np.sum(p*logx)/np.sum(p))**2)
+
+    # # find bracketing interval
+    # a = 1
+    # step = 0.5
+    # b = a + step
+    # ga = g(a)
+    # while g(b)*ga > 0:
+    #     b += step
+    # nu = brentq(g, a, b)
+    nu = newton(g, 2, fprime=gprime, maxiter=100)
+
+    # plug into the other equation
+    b = 1 / np.mean(x**nu)
+
+    return nu, b
+
+
+
+
+# no need to implement this, it is a Weibull distribution
+# class MFT_minimal(rv_continuous):
+#     def __init__(self, **kwargs):
+#         super().__init__(a=0, **kwargs)
+
+#     def _cdf(self, t, b, nu):
+#         return 1 - np.exp(-b * t**nu)
+
+#     def _pdf(self, t, b, nu):
+#         return b * nu * t**(nu-1) * np.exp(-b * t**nu)
+
+#     def _sf(self, t, b, nu):
+#         return np.exp(-b * t**nu)
+
+#     def _ppf(self, q, b, nu):
+#         return (-np.log(1-q) / b)**(1/nu)
+
+#     def _logsf(self, t, b, nu):
+#         return -b * t**nu
+
+#     def _isf(self, q, b, nu):
+#         return (-np.log(q) / b)**(1/nu)
+
+#     def _logpdf(self, t, b, nu):
+#         return -b * t**nu + np.log(b*nu) + (nu-1) * np.log(t)
+
+
 if __name__ == "__main__":
     from volume_growth import *
     from osm import *
@@ -393,24 +451,32 @@ if __name__ == "__main__":
 
     # # test quantiles fitting
 
-    # test data
-    np.random.seed(seed=44)
-    N = 5
-    Ninter = 1000
-    size = 5000
-    Npar = 100
-    noise_level = 0.02 * RV.t0
-    tpvec = RV.t0 * np.logspace(-0.5, 0.5, Npar)
-    x = [np.amin(tpvec), np.amax(tpvec)]
-    tp_fitted = []
-    for tp in tpvec:
-        wt = RV.custom_rvs(N, size=size)
-        # wt += noise_level * np.random.randn(size)
-        wt = inverse_wlc(wt, tp)
-        res = lsq_quantile_fit(wt, RV, N, Ninter)
-        tp_fitted.append(res.x[0])
+    # # test data
+    # np.random.seed(seed=44)
+    # N = 5
+    # Ninter = 1000
+    # size = 5000
+    # Npar = 100
+    # noise_level = 0.02 * RV.t0
+    # tpvec = RV.t0 * np.logspace(-0.5, 0.5, Npar)
+    # x = [np.amin(tpvec), np.amax(tpvec)]
+    # tp_fitted = []
+    # for tp in tpvec:
+    #     wt = RV.custom_rvs(N, size=size)
+    #     # wt += noise_level * np.random.randn(size)
+    #     wt = inverse_wlc(wt, tp)
+    #     res = lsq_quantile_fit(wt, RV, N, Ninter)
+    #     tp_fitted.append(res.x[0])
+    # plt.figure()
+    # plt.title("LS Quantile Function")
+    # plt.scatter(tpvec, tp_fitted)
+    # plt.plot(x, x, 'k--')
+    # plt.show()
+
+    # test creation of MFT RV
+    RV = MFT_minimal()
+    print(RV.a)
+    t = np.linspace(0, 5, 300)
     plt.figure()
-    plt.title("LS Quantile Function")
-    plt.scatter(tpvec, tp_fitted)
-    plt.plot(x, x, 'k--')
+    plt.plot(t, RV.pdf(t, 1, 2))
     plt.show()

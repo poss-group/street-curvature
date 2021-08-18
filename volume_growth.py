@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.interpolate import PPoly
+from scipy.optimize import curve_fit
 import networkx as nx
 import multiprocessing as mp
 from utils_network import equally_spaced_edge_position_sample
@@ -215,3 +216,81 @@ def volume_growth(G, weight, Npos, pos_weight=None):
     pool.join()
 
     return sum(results, [])
+
+def power_fit(rates, Nsamples=1000, max_rate=0.5, weights=None):
+    """
+    Fit a power law to the mean volume growth defined by a set
+    of volume growth rates.
+
+    Parameters
+    ----------
+    rates : list of scipy.interpolate.PPoly
+        The volume growth rates as piecewise constant functions.
+    Nsamples : int, optional
+        The number of samples used for evaluating the volume growth curves.
+    max_rate : float, optional
+        The maximum mean growth rate defining the right boundary of the fitting
+        region. Given as a fraction of the maximum mean growth rate.
+    weights : optional, list
+        Weights used for averaging. If `weights=None`,
+        then uniform weights are used.
+
+    Returns
+    -------
+    popt : array
+        Optimal parameters c, nu so that the sum of squared residuals of
+        ``c * x**nu - mean_rate(x)`` is minimized.
+    pcov : 2-D array
+        The estimated covariance of popt.
+    """
+    # calculate mean growth rate
+    t = np.linspace(0, np.amax([r.x[-1] for r in rates]), Nsamples)
+    mean_rate = np.average([r.antiderivative()(t) for r in rates],
+                           weights=weights, axis=0)
+
+    # define fitting region
+    end = np.argmax(mean_rate > max_rate*np.amax(mean_rate))
+    x = t[:end]
+    y = mean_rate[:end]
+
+    func = lambda x, c, nu : c * x**nu
+    return curve_fit(func, x, y)
+
+def quad_fit(rates, Nsamples=1000, max_rate=0.5, weights=None):
+    """
+    Fit a quadratic growth to the mean volume growth defined by a set
+    of volume growth rates.
+
+    Parameters
+    ----------
+    rates : list of scipy.interpolate.PPoly
+        The volume growth rates as piecewise constant functions.
+    Nsamples : int, optional
+        The number of samples used for evaluating the volume growth curves.
+    max_rate : float, optional
+        The maximum mean growth rate defining the right boundary of the fitting
+        region. Given as a fraction of the maximum mean growth rate.
+    weights : optional, list
+        Weights used for averaging. If `weights=None`,
+        then uniform weights are used.
+
+    Returns
+    -------
+    popt : array
+        Optimal parameter c so that the sum of squared residuals of
+        ``c * x**2 - mean_rate(x)`` is minimized.
+    pcov : 2-D array
+        The estimated covariance of popt.
+    """
+    # calculate mean growth rate
+    t = np.linspace(0, np.amax([r.x[-1] for r in rates]), Nsamples)
+    mean_rate = np.average([r.antiderivative()(t) for r in rates],
+                           weights=weights, axis=0)
+
+    # define fitting region
+    end = np.argmax(mean_rate > max_rate*np.amax(mean_rate))
+    x = t[:end]
+    y = mean_rate[:end]
+
+    func = lambda x, c : c * x**2
+    return curve_fit(func, x, y)
