@@ -93,10 +93,15 @@ def inverse_wlc(r, lp):
     f2 = lambda t: 2*np.exp(-t/lp)
     return newton(f, r**2, fprime=f1, fprime2=f2)
 
-def lsq_quantile_fit(wt_data, RV, N, Ninter, q='all'):
+def lsq_quantile_fit(wt_data, RV, N, Ninter, q='all', truncate=None):
     # sample model CDF for interpolation
-    t = np.linspace(0, RV.tmax, Ninter)
-    cdf = RV.cdf(t, N)
+    if truncate is None:
+        t = np.linspace(0, RV.tmax, Ninter)
+        cdf = RV.cdf(t, N)
+    else:
+        t = np.linspace(0, truncate, Ninter)
+        cdf = RV.cdf(t, N)
+        cdf /= cdf[-1]
 
     # data quantiles: sorted array
     if q == 'all':
