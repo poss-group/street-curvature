@@ -145,8 +145,6 @@ if __name__ == "__main__":
     G = ox.graph_from_place("Broitzem", network_type="drive")
     G = prepare_graph(G)
 
-    A = np.sum([w for u, v, w in G.to_undirected().edges(data='travel_time')])
-
     # # test volume growth with edge locations
     # d = volume_growth_analysis(G, 'travel_time', 500)
     # times = np.linspace(0, 1.5*d, 400)
@@ -229,18 +227,18 @@ if __name__ == "__main__":
     # plt.legend()
     # plt.show()
 
-    # test custom waiting time sampling
-    rates = [growth_rate_at_node(G, n, 'travel_time') for n in G.nodes()]
-    RV = RV_minimal(rates)
-    Nsamples = 10000
-    N = 4
-    wt = RV.custom_rvs(N, size=Nsamples)
-    plt.figure()
-    plt.hist(wt, bins=40, density=True)
-    tmax = np.amax([r.x[-1] for r in rates])
-    t = np.linspace(0, tmax, 200)
-    plt.plot(t, RV.pdf(t, N))
-    plt.show()
+    # # test custom waiting time sampling
+    # rates = [growth_rate_at_node(G, n, 'travel_time') for n in G.nodes()]
+    # RV = RV_minimal(rates)
+    # Nsamples = 10000
+    # N = 4
+    # wt = RV.custom_rvs(N, size=Nsamples)
+    # plt.figure()
+    # plt.hist(wt, bins=40, density=True)
+    # tmax = np.amax([r.x[-1] for r in rates])
+    # t = np.linspace(0, tmax, 200)
+    # plt.plot(t, RV.pdf(t, N))
+    # plt.show()
 
     # # compare means: sampling vs integration
     # rates = [growth_rate_at_node(G, n, 'travel_time') for n in G.nodes()]
@@ -331,3 +329,14 @@ if __name__ == "__main__":
     # # test new version of equally spaced edge sample
     # print(get_total_volume(G, 'length'))
     # edge_pos = equally_spaced_edge_position_sample(G, 200, 'length')
+
+    # test new average VOLUME calculation
+    rates = volume_growth(G, 'travel_time', 500, 'length')
+    A = get_total_volume(G, 'travel_time')
+    tmax = np.amax([r.x[-1] for r in rates])
+    t = np.linspace(0, tmax, 400)
+    plt.figure()
+    for r in rates:
+        v = r.antiderivative()(t)
+        plt.plot(t, v/A)
+    plt.show()

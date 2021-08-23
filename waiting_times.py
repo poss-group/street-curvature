@@ -1,7 +1,7 @@
 import numpy as np
 from utils_network import *
 from scipy.stats import rv_continuous
-from scipy.interpolate import CubicHermiteSpline
+from scipy.interpolate import CubicHermiteSpline, interp1d
 from volume_growth import *
 from scipy.optimize import newton, least_squares, brentq
 
@@ -318,6 +318,52 @@ def RV_minimal(rates, weights=None):
 
     RV = minimal_model(momtype=0, a=0, b=tmax)
     return RV
+
+def RV_base(G, weight, Npos, Ninter, pos_weight=None, weights=None):
+    """
+    Build a base model waiting time random variable from a graph.
+
+    Parameters
+    ----------
+    G : networkx.MultiDiGraph
+        The network. Must have a `oneway` edge attribute.
+    weight : string
+        The edge weight whose volume growth in calculated.
+    Npos : int
+        The number of edge positions for which to calculate volume growth.
+    Ninter : int
+        The number of interpolation points for the CDf calculation.
+    pos_weight : str, optional
+        The edge weight used for the equally spaced edge position sample.
+        If `pos_weight=None`, the `weight` is used.
+    weights : array-like, optional
+        Weights used for weighted average. Passed directly to numpy.average.
+        If `weights=None`, uniform weights are assumed.
+
+    Returns
+    -------
+    RV : Subclass of scipy.stats.rv_continuous
+        The waiting time random variable. The shape parameters of the distribution
+        are `N`, the number of buses, and `tp`, the persistence time.
+    """
+    A = get_total_volume(G, weight)
+    rates = volume_growth(G, weight, Npos, pos_weight)
+    tmax = np.amax([r.x[-1] for r in rates])
+    t = np.linspace(0, tmax, Ninter)
+    v = np.average([r.antiderivative()(t)/A for r in rates],
+                   axis=0, weights=weights)
+    F = interp1d(t, v)
+
+    class base_model(rv_continuous):
+        def __init__(self, **kwargs):
+            self.tmax = np.amax([r.x[-1] for r in rates])
+            super().__init__(**kwargs)
+
+        def _cdf(self, t, N):
+            return 1 - (1-F(t))**N
+
+    return base_model(a=0, b=tmax)
+
 
 def RV_WLC(rates, weights=None):
     """

@@ -60,27 +60,28 @@ def growth_rate_at_node(G, A, weight):
     A : int
         Node ID
     weight : string
-        Edge weight whose volume growth rate is calculated.
+        Edge weight whose volume growth in calculated.
 
     Returns
     -------
     rate : scipy.interpolate.PPoly
         The volume growth rate as a piecewise constant function.
+        Units are meters per [weight].
     """
     # calculate shortest path lengths
-    dist2A = dict(nx.shortest_path_length(G, source=A, weight=weight))
+    distfromA = dict(nx.shortest_path_length(G, source=A, weight=weight))
 
     # build array of left and right borders of ramp-like functions
     left = []
     right = []
     for u, v, k, ddict in G.edges(data=True, keys=True):
-        du = dist2A[u]
+        du = distfromA[u]
         w = ddict[weight]
         if ddict['oneway']:
             left.append(du)
             right.append(du + w)
         else:
-            dv = dist2A[v]
+            dv = distfromA[v]
             dmax = 0.5 * (du + dv + w)
             left.append(du)
             right.append(dmax)
@@ -121,7 +122,7 @@ def growth_rate_at_edge_positions(G, edge, positions, weight):
     B = edge[1]
 
     # calculate shortest path lengths
-    dist2B = dict(nx.shortest_path_length(G, source=B, weight=weight))
+    distfromB = dict(nx.shortest_path_length(G, source=B, weight=weight))
     wAB = G.get_edge_data(*edge)[weight]
 
     # build array of left and right borders of ramp-like functions
@@ -129,14 +130,14 @@ def growth_rate_at_edge_positions(G, edge, positions, weight):
     right = []
     if edge_data['oneway']:
         for u, v, k, ddict in G.edges(data=True, keys=True):
-            du = dist2B[u] + wAB*(1-positions)
+            du = distfromB[u] + wAB*(1-positions)
             if edge != (u, v, k):
                 w = ddict[weight]
                 if ddict['oneway']:
                     left.append(du)
                     right.append(du + w)
                 else:
-                    dv = dist2B[v] + wAB*(1-positions)
+                    dv = distfromB[v] + wAB*(1-positions)
                     dmax = 0.5 * (du + dv + w)
                     left.append(du)
                     right.append(dmax)
@@ -144,21 +145,21 @@ def growth_rate_at_edge_positions(G, edge, positions, weight):
                 left.append(np.zeros_like(positions))
                 right.append(wAB*(1-positions))
                 left.append(du)
-                right.append(dist2B[A]+np.ones_like(positions)*wAB)
+                right.append(distfromB[A]+np.ones_like(positions)*wAB)
     else:
-        dist2A = dict(nx.shortest_path_length(G, source=A, weight=weight))
+        distfromA = dict(nx.shortest_path_length(G, source=A, weight=weight))
         for u, v, k, ddict in G.edges(data=True, keys=True):
 
             if edge != (u, v, k) and edge != (v, u, k):
-                du = np.minimum(dist2A[u] + wAB*positions,
-                            dist2B[u] + wAB*(1-positions))
+                du = np.minimum(distfromA[u] + wAB*positions,
+                            distfromB[u] + wAB*(1-positions))
                 w = ddict[weight]
                 if ddict['oneway']:
                     left.append(du)
                     right.append(du + w)
                 else:
-                    dv = np.minimum(dist2A[v] + wAB*positions,
-                            dist2B[v] + wAB*(1-positions))
+                    dv = np.minimum(distfromA[v] + wAB*positions,
+                            distfromB[v] + wAB*(1-positions))
                     dmax = 0.5 * (du + dv + w)
                     left.append(du)
                     right.append(dmax)
@@ -191,7 +192,7 @@ def volume_growth(G, weight, Npos, pos_weight=None):
         The network. Must have a `oneway` edge attribute.
     weight : string
         The edge weight whose volume growth in calculated.
-    Ninter : int
+    Npos : int
         The number of edge positions for which to calculate volume growth.
     pos_weight : str, optional
         The edge weight used for the equally spaced edge position sample.
