@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.interpolate import PPoly
+from scipy.interpolate import PPoly, interp1d
 from scipy.optimize import curve_fit
 import networkx as nx
 import multiprocessing as mp
@@ -256,6 +256,44 @@ def volume_growth(G, weight, Npos, pos_weight=None,
     pool.join()
 
     return sum(results, [])
+
+def get_mean_volume_interpolant(G, weight, Npos, Ninter, pos_weight=None,
+                  speed_key='speed_kph', speed_unit='kph'):
+    """
+    Calculates the mean volume growth.
+
+    Parameters
+    ----------
+    G : networkx.MultiDiGraph
+        The network. Must have a `oneway` edge attribute.
+    weight : string
+        Travel time edge weight.
+    Npos : int
+        The number of edge positions for which to calculate volume growth.
+    Ninter : int
+        The number of interpolation points for the volume growth curve.
+    pos_weight : str, optional
+        The edge weight used for the equally spaced edge position sample.
+        If `pos_weight=None`, the `weight` is used.
+    speed_key : string, optional
+        Name of edge speed attribute.
+    speed_unit : string, optional
+        Units of the speed attribute.
+
+    Returns
+    -------
+    F : scipy.interpolate.interp1d
+        The mean volume growth interpolator.
+        Units are normalized to the total edge length.
+    """
+    A = get_total_volume(G, 'length')
+    rates = volume_growth(G, weight, Npos, pos_weight=pos_weight,
+                          speed_key=speed_key, speed_unit=speed_unit)
+    tmax = np.amax([r.x[-1] for r in rates])
+    t = np.linspace(0, tmax, Ninter)
+    v = np.average([r.antiderivative()(t)/A for r in rates],
+                   axis=0)
+    return interp1d(t, v, bounds_error=False, fill_value=(0, 1))
 
 def power_fit(rates, Nsamples=1000, max_rate=0.5, weights=None):
     """

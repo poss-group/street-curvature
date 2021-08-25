@@ -342,7 +342,7 @@ if __name__ == "__main__":
     # plt.show()
 
     # test new average VOLUME calculation, edge locations
-    rates = volume_growth(G, 'travel_time', 50, pos_weight='length')
+    rates = volume_growth(G, 'travel_time', 100, pos_weight='length')
     A = get_total_volume(G, 'length')
     tmax = np.amax([r.x[-1] for r in rates])
     t = np.linspace(0, tmax, 400)

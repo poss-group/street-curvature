@@ -346,23 +346,18 @@ def RV_base(G, weight, Npos, Ninter, pos_weight=None, weights=None):
         The waiting time random variable. The shape parameters of the distribution
         are `N`, the number of buses, and `tp`, the persistence time.
     """
-    A = get_total_volume(G, weight)
-    rates = volume_growth(G, weight, Npos, pos_weight)
-    tmax = np.amax([r.x[-1] for r in rates])
-    t = np.linspace(0, tmax, Ninter)
-    v = np.average([r.antiderivative()(t)/A for r in rates],
-                   axis=0, weights=weights)
-    F = interp1d(t, v)
+    F = get_mean_volume_interpolant(G, weight, Npos,
+                                    Ninter, pos_weight=pos_weight)
 
     class base_model(rv_continuous):
         def __init__(self, **kwargs):
-            self.tmax = np.amax([r.x[-1] for r in rates])
+            self.tmax = F.x[-1]
             super().__init__(**kwargs)
 
         def _cdf(self, t, N):
             return 1 - (1-F(t))**N
 
-    return base_model(a=0, b=tmax)
+    return base_model(a=0, b=F.x[-1])
 
 
 def RV_WLC(rates, weights=None):

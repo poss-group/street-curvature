@@ -52,7 +52,7 @@ def route_length_statistic(G, binwidth=0.2):
     N = G.number_of_nodes()
     pos = nx.get_node_attributes(G, 'pos')
     points = np.array(list(pos.values()))
-    routes = dict(nx.all_pairs_dijkstra_path_length(G, weight='dist'))
+    routes = dict(nx.all_pairs_dijkstra_path_length(G, weight='length'))
     dist = pdist(points)
     r = []
     nodes = list(routes.keys())
@@ -83,7 +83,7 @@ def delaunay(points):
     G : networkx.Graph
         The Delaunay triangulation represented as a graph.
         The graph has the node attribute 'pos' with the given point
-        coordinates, and the edge attribute 'dist', which is the
+        coordinates, and the edge attribute 'length', which is the
         Euclidean distance between nodes.
     """
     G = nx.Graph()
@@ -97,7 +97,7 @@ def delaunay(points):
 
     distances = {(e1, e2): np.linalg.norm(G.nodes[e1]['pos']-G.nodes[e2]['pos'])
                  for e1, e2 in G.edges()}
-    nx.set_edge_attributes(G, distances, 'dist')
+    nx.set_edge_attributes(G, distances, 'length')
 
     return G
 
@@ -115,7 +115,7 @@ def gabriel(points):
     G : networkx.Graph
         The Gabriel graph.
         The graph has the node attribute 'pos' with the given point
-        coordinates, and the edge attribute 'dist', which is the
+        coordinates, and the edge attribute 'length', which is the
         Euclidean distance between nodes.
     """
     # start with Delaunay triangulation
@@ -133,7 +133,7 @@ def gabriel(points):
     # recalculate distances
     distances = {(e1, e2): np.linalg.norm(G.nodes[e1]['pos']-G.nodes[e2]['pos'])
                  for e1, e2 in G.edges()}
-    nx.set_edge_attributes(G, distances, 'dist')
+    nx.set_edge_attributes(G, distances, 'length')
 
     return G
 
@@ -152,12 +152,12 @@ def euclidean_minimum_spanning_tree(points):
     G : networkx.Graph
         The EMST graph.
         The graph has the node attribute 'pos' with the given point
-        coordinates, and the edge attribute 'dist', which is the
+        coordinates, and the edge attribute 'length', which is the
         Euclidean distance between nodes.
     """
     # start with Delaunay triangulation
     G = delaunay(points)
-    EMST = nx.minimum_spanning_tree(G, weight='dist')
+    EMST = nx.minimum_spanning_tree(G, weight='length')
 
     return EMST
 
@@ -178,7 +178,7 @@ def taxicab(size, periodic=False):
     G : networkx.Graph
         The lattice represented as a networkx.Graph
         The graph has the node attribute 'pos' with the given point
-        coordinates, and the edge attribute 'dist', which is the
+        coordinates, and the edge attribute 'length', which is the
         Euclidean distance between nodes.
     """
     if np.ndim(size) == 0:
@@ -190,7 +190,7 @@ def taxicab(size, periodic=False):
     pos = {(i, j): np.array([i, j]) for i, j in G.nodes()}
     nx.set_node_attributes(G, pos, 'pos')
     distances = {(e1, e2): 1 for e1, e2 in G.edges()}
-    nx.set_edge_attributes(G, distances, 'dist')
+    nx.set_edge_attributes(G, distances, 'length')
 
     return nx.convert_node_labels_to_integers(G)
 
@@ -212,7 +212,7 @@ def beta_skeleton(points, beta, p=2):
     nx.set_node_attributes(G, pos, 'pos')
     distances = {(e1, e2): np.linalg.norm(G.nodes[e1]['pos']-G.nodes[e2]['pos'])
                  for e1, e2 in G.edges()}
-    nx.set_edge_attributes(G, distances, 'dist')
+    nx.set_edge_attributes(G, distances, 'length')
 
     return G
 
@@ -234,7 +234,7 @@ def triangular(size, periodic=False):
     G : networkx.Graph
         The lattice represented as a networkx.Graph
         The graph has the node attribute 'pos' with the given point
-        coordinates, and the edge attribute 'dist', which is the
+        coordinates, and the edge attribute 'length', which is the
         Euclidean distance between nodes.
     """
     if np.ndim(size) == 0:
@@ -248,7 +248,7 @@ def triangular(size, periodic=False):
     # pos_scaled = {k: factor*np.array(v) for k, v in pos.items()}
     # nx.set_node_attributes(G, pos_scaled, 'pos')
     distances = {(e1, e2): 1 for e1, e2 in G.edges()}
-    nx.set_edge_attributes(G, distances, 'dist')
+    nx.set_edge_attributes(G, distances, 'length')
 
     return nx.convert_node_labels_to_integers(G)
 
@@ -269,7 +269,7 @@ def hexagonal(size, periodic=False):
     G : networkx.Graph
         The lattice represented as a networkx.Graph
         The graph has the node attribute 'pos' with the given point
-        coordinates, and the edge attribute 'dist', which is the
+        coordinates, and the edge attribute 'length', which is the
         Euclidean distance between nodes.
     """
     if np.ndim(size) == 0:
@@ -283,7 +283,7 @@ def hexagonal(size, periodic=False):
     # pos_scaled = {k: factor*np.array(v) for k, v in pos.items()}
     # nx.set_node_attributes(G, pos_scaled, 'pos')
     distances = {(e1, e2): 1 for e1, e2 in G.edges()}
-    nx.set_edge_attributes(G, distances, 'dist')
+    nx.set_edge_attributes(G, distances, 'length')
 
     return nx.convert_node_labels_to_integers(G)
 
@@ -307,7 +307,7 @@ def taxicab_with_subgrid(size, spacing, x, periodic=False):
     G : networkx.Graph
         The lattice represented as a networkx.Graph
         The graph has the node attribute 'pos' with the given point
-        coordinates, and the edge attribute 'dist', which is the
+        coordinates, and the edge attribute 'length', which is the
         Euclidean distance between nodes.
     """
     if np.ndim(size) == 0:
@@ -324,7 +324,7 @@ def taxicab_with_subgrid(size, spacing, x, periodic=False):
     pos = {(i, j): np.array([i, j]) for i, j in G.nodes()}
     nx.set_node_attributes(G, pos, 'pos')
     distances = {(e1, e2): 1 for e1, e2 in G.edges()}
-    nx.set_edge_attributes(G, distances, 'dist')
+    nx.set_edge_attributes(G, distances, 'length')
 
     is_on_subgrid = lambda n : True if (n[0]%Lx == 0 or n[1]%Ly == 0) else False
     edge_speed = lambda u, v : 1/x if (is_on_subgrid(u) and is_on_subgrid(v)) else 1
@@ -338,7 +338,7 @@ def taxicab_with_subgrid(size, spacing, x, periodic=False):
 def taxicab_village_grid(m, n, size, spacing, boost):
     G = nx.Graph()
     inter_village_roads = []
-    ddict = {'dist': spacing-2*size, 'speed': 1/boost, 'time': boost*(spacing-2*size)}
+    ddict = {'length': spacing-2*size, 'speed': 1/boost, 'time': boost*(spacing-2*size)}
     for i in range(m):
         for j in range(n):
             village = nx.grid_2d_graph(2*size+1, 2*size+1)
@@ -355,7 +355,7 @@ def taxicab_village_grid(m, n, size, spacing, boost):
     pos = {(i, j): np.array([i, j]) for i, j in G.nodes()}
     nx.set_node_attributes(G, pos, 'pos')
 
-    nx.set_edge_attributes(G, 1, 'dist')
+    nx.set_edge_attributes(G, 1, 'length')
     nx.set_edge_attributes(G, 1, 'speed')
     nx.set_edge_attributes(G, 1, 'time')
 
@@ -374,7 +374,7 @@ def assign_uniform_speeds(G, umin, umax):
     ----------
     G : networkx.Graph
         Graph representing the street network. Needs to have an edge attribute
-        'dist', which are the (Euclidean) distances between connected nodes.
+        'length', which are the (Euclidean) distances between connected nodes.
     umin : float
         Minimum speed (left bound of uniform distribution)
     umax : float
@@ -384,7 +384,7 @@ def assign_uniform_speeds(G, umin, umax):
     speeds = (umax-umin)*np.random.random(M) + umin
     speeds_dict = dict(zip(list(G.edges()), speeds))
     nx.set_edge_attributes(G, speeds_dict, 'speed')
-    dist = nx.get_edge_attributes(G, 'dist')
+    dist = nx.get_edge_attributes(G, 'length')
     times = {e: dist[e] / speeds_dict[e] for e in G.edges()}
     nx.set_edge_attributes(G, times, 'time')
 
@@ -398,7 +398,7 @@ def boost_edges(G, edgelist, x):
     ----------
     G : networkx.Graph
         Graph representing the street network. Needs to have an edge attribute
-        'dist', which are the (Euclidean) distances between connected nodes.
+        'length', which are the (Euclidean) distances between connected nodes.
     edgelist : list
         List of edges to be boosted.
     x : float
@@ -406,7 +406,7 @@ def boost_edges(G, edgelist, x):
     """
     speeds_dict = {e: 1/x if e in edgelist else 1 for e in G.edges()}
     nx.set_edge_attributes(G, speeds_dict, 'speed')
-    dist = nx.get_edge_attributes(G, 'dist')
+    dist = nx.get_edge_attributes(G, 'length')
     times = {e: dist[e] / speeds_dict[e] for e in G.edges()}
     nx.set_edge_attributes(G, times, 'time')
 
@@ -420,7 +420,7 @@ def boost_random_fraction(G, phi, x):
     ----------
     G : networkx.Graph
         Graph representing the street network. Needs to have an edge attribute
-        'dist', which are the (Euclidean) distances between connected nodes.
+        'length', which are the (Euclidean) distances between connected nodes.
     phi : float
         Fraction of edges to boost
     x : float
@@ -452,6 +452,7 @@ def upgrade_to_ox_graph(G):
     """
     # No streets are oneway in undirected graph
     nx.set_edge_attributes(G, False, name='oneway')
+    nx.set_edge_attributes(G, 1, name='speed')
 
     return nx.MultiDiGraph(G)
 
@@ -624,7 +625,7 @@ if __name__ == "__main__":
     G = gabriel(points)
     A = get_barycentric_node(G)
     R = np.linspace(0.2, 1, Ncircles) * np.sqrt(N) / 3
-    circles = get_circles(G, A, R, 'dist')
+    circles = get_circles(G, A, R, 'length')
     pos = nx.get_node_attributes(G, 'pos')
     plt.subplot(121)
     plt.axis("equal")
@@ -633,7 +634,7 @@ if __name__ == "__main__":
     for j, C in enumerate(circles):
         Cpos = []
         for u, v, lvec in C:
-            direction = (pos[v] - pos[u]) / G[u][v]['dist']
+            direction = (pos[v] - pos[u]) / G[u][v]['length']
             for l in lvec:
                 Cpos.append(pos[u]+l*direction)
         Cpos = np.array(Cpos)
@@ -667,7 +668,7 @@ if __name__ == "__main__":
     # G = gabriel(points)
     # A = get_barycentric_node(G)
     # R = np.array([np.sqrt(N) / 4])
-    # circles = get_circles(G, A, R, 'dist')
+    # circles = get_circles(G, A, R, 'length')
     # pos = nx.get_node_attributes(G, 'pos')
     # plt.subplot(221)
     # plt.axis("equal")
@@ -677,8 +678,8 @@ if __name__ == "__main__":
     # for C in circles:
     #     Cpos = []
     #     for u, v, lvec in C:
-    #         direction = (pos[v] - pos[u]) / G[u][v]['dist']
-    #         subdivide_edge(H, u, v, lvec, 'dist')
+    #         direction = (pos[v] - pos[u]) / G[u][v]['length']
+    #         subdivide_edge(H, u, v, lvec, 'length')
     #         for l in lvec:
     #             Cpos.append(pos[u]+l*direction)
     #     Cpos = np.array(Cpos)

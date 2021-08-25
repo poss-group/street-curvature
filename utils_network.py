@@ -166,14 +166,14 @@ def subdivide_edge(G, u, v, positions_on_edge, weight):
     positions_on_edge : list of floats
         List of linear values referencing the positions on the edge.
     weight : string
-        Edge weight used in the linear referencing. Either 'dist' for
+        Edge weight used in the linear referencing. Either 'length' for
         Euclidean distance or 'time' for travel time along edge.
     """
     N = G.number_of_nodes()
     M = len(positions_on_edge)
     pos = nx.get_node_attributes(G, "pos")
     edge_attributes = G[u][v]
-    direction = (pos[v] - pos[u]) / edge_attributes['dist']
+    direction = (pos[v] - pos[u]) / edge_attributes['length']
     if weight == 'time':
         direction *= edge_attributes['speed']
     new_nodes = [(N+i, {"pos": pos[u]+l*direction})
@@ -185,7 +185,7 @@ def subdivide_edge(G, u, v, positions_on_edge, weight):
         v1 = path[i]
         v2 = path[i+1]
         d = np.linalg.norm(G.nodes[v1]['pos']-G.nodes[v2]['pos'])
-        G[v1][v2]['dist'] = d
+        G[v1][v2]['length'] = d
         if weight == 'time':
             G[v1][v2]['speed'] = edge_attributes['speed']
             G[v1][v2]['time'] = d / edge_attributes['speed']
@@ -1009,17 +1009,17 @@ if __name__ == "__main__":
 
     # # test volume calculation
     # diam = []
-    # for u, ddict in nx.shortest_path_length(G, weight='dist'):
+    # for u, ddict in nx.shortest_path_length(G, weight='length'):
     #         diam += list(ddict.values())
     # diam = np.amax(diam)
     # times =np.linspace(0, 1.1*diam, 20)
     # lbd = np.zeros_like(times)
     # for A in G.nodes():
-    #     lbd += volume_growth_at_point(G, A, times, 'dist')
-    # total_length = np.sum([d for u, v, d in G.edges(data='dist')])
+    #     lbd += volume_growth_at_point(G, A, times, 'length')
+    # total_length = np.sum([d for u, v, d in G.edges(data='length')])
     # plt.plot(times/diam, lbd/N/total_length, 'o-')
     # plt.show()
-    # left, right, ave = sample_volume_growth(G, times, 'dist')
+    # left, right, ave = sample_volume_growth(G, times, 'length')
     # plt.plot(times[1:]/diam, left/total_length, 'o-', label="using left sum")
     # plt.plot(times[1:]/diam, right/total_length, 'o-', label="using right sum")
     # plt.plot(times[1:]/diam, ave/total_length, 'o-', label="using average")
@@ -1041,8 +1041,8 @@ if __name__ == "__main__":
     # plt.show()
 
     # # test parallel path lengths
-    # lengths = path_lengths_parallel(G, 'dist')
-    # dist = dict(nx.shortest_path_length(G, weight='dist'))
+    # lengths = path_lengths_parallel(G, 'length')
+    # dist = dict(nx.shortest_path_length(G, weight='length'))
     # for n1, ddict in dist.items():
     #     for n2, d in ddict.items():
     #         if d != (lengths[n1])[n2]:
@@ -1050,7 +1050,7 @@ if __name__ == "__main__":
 
     # # test volume growth
     # t = np.linspace(0, 2, 100)
-    # lbd, diam, A = volume_growth(G, t, 'dist')
+    # lbd, diam, A = volume_growth(G, t, 'length')
     # plt.plot(t/diam, lbd/A)
     # plt.axhline(y=0, ls='--', c='gray')
     # plt.axhline(y=1, ls='--', c='gray')
@@ -1061,24 +1061,24 @@ if __name__ == "__main__":
     # P = nx.path_graph(M)
     # a = 0.5
     # dist = {e: a for e in P.edges()}
-    # nx.set_edge_attributes(P, dist, 'dist')
+    # nx.set_edge_attributes(P, dist, 'length')
     # t = np.linspace(0, M*a, 250)
 
-    # distances = dict(nx.shortest_path_length(P, weight='dist'))
+    # distances = dict(nx.shortest_path_length(P, weight='length'))
     # plt.figure()
     # ax = plt.gca()
     # for u, v in P.edges():
-    #     volume = volume_growth_edge(P, u, v, distances, t, 'dist')
+    #     volume = volume_growth_edge(P, u, v, distances, t, 'length')
     #     plt.plot(t, volume)
     #     c = ax.lines[-1].get_color()
-    #     volume = volume_growth_edge(P, v, u, distances, t, 'dist')
+    #     volume = volume_growth_edge(P, v, u, distances, t, 'length')
     #     plt.plot(t, volume, c=c, ls='dashed')
     # plt.show()
 
     # # test parallelized version of vertex based volume growth
     # times = np.linspace(0, 2, 300)
-    # lbd_nodes = volume_growth_all_vertices(G, times, 'dist')
-    # lbd_edges = volume_growth_uniform_edge_sample(G, 500, times, 'dist')
+    # lbd_nodes = volume_growth_all_vertices(G, times, 'length')
+    # lbd_edges = volume_growth_uniform_edge_sample(G, 500, times, 'length')
     # plt.plot(times, lbd_nodes, label='nodes')
     # plt.plot(times, lbd_edges, label='edges')
     # plt.legend()
@@ -1086,7 +1086,7 @@ if __name__ == "__main__":
 
     # # test grid calculation again, measuring performance
     # times = np.linspace(0, 2, 300)
-    # v, L = volume_growth_grid_measure_performance(G, 1000, times, 'dist')
+    # v, L = volume_growth_grid_measure_performance(G, 1000, times, 'length')
     # plt.plot(times, v)
     # plt.show()
 
@@ -1095,7 +1095,7 @@ if __name__ == "__main__":
     # T = taxicab(m)
     # diam = np.sqrt(2)*m
     # times = np.linspace(0, diam, 300)
-    # v, L, diam = volume_growth_grid(T/diam, 500, times, 'dist')
+    # v, L, diam = volume_growth_grid(T/diam, 500, times, 'length')
     # plt.plot(times, v)
     # plt.show()
 
@@ -1105,14 +1105,14 @@ if __name__ == "__main__":
     # x = np.linspace(1, max_detour, Nbins)
     # y = 2 * x / 3 + 1 / (3*x)
     # plt.plot(x, y, 'k--', label="Euclidean plane")
-    # for xp, fp in zip(*pairwise_expected_detours(G, 'dist', 1000)):
+    # for xp, fp in zip(*pairwise_expected_detours(G, 'length', 1000)):
     #     y = np.interp(x, xp, fp, left=np.nan, right=np.nan)
     #     plt.plot(x, y, alpha=0.5, lw=0.6)
     # plt.legend()
     # plt.show()
 
     # # test new wrapper
-    # splines, tmax = volume_growth_analysis(G, 'dist', 1000)
+    # splines, tmax = volume_growth_analysis(G, 'length', 1000)
     # print(tmax)
     # times = np.linspace(0, tmax, 200)
     # for spl in splines:
@@ -1121,7 +1121,7 @@ if __name__ == "__main__":
     # plt.show()
 
     # # test volume
-    # splines, L, diam = volume_growth_edge_sample(G, 10, 1000, 500, 'dist')
+    # splines, L, diam = volume_growth_edge_sample(G, 10, 1000, 500, 'length')
     # times = np.linspace(0, diam, 200)
     # for spl in splines:
     #     plt.plot(times, spl(times))
@@ -1129,12 +1129,12 @@ if __name__ == "__main__":
 
     # # test volume growth rate calculation
     # Ninter = 50
-    # diam = get_diameter(G, 'dist')
-    # dmax = diam + 2*np.amax(list(nx.get_edge_attributes(G, 'dist').values()))
+    # diam = get_diameter(G, 'length')
+    # dmax = diam + 2*np.amax(list(nx.get_edge_attributes(G, 'length').values()))
     # times = np.linspace(0, dmax, Ninter)
-    # A = np.sum([w for u, v, w in G.edges(data='dist')])
+    # A = np.sum([w for u, v, w in G.edges(data='length')])
 
-    # node_data, edge_data = get_volume_growth_curves(nx.MultiGraph(G), 'dist', times)
+    # node_data, edge_data = get_volume_growth_curves(nx.MultiGraph(G), 'length', times)
     # plt.figure()
     # vol = np.mean([v for v, r in node_data], axis=0)
     # rates = np.mean([r for v, r in node_data], axis=0)
@@ -1147,11 +1147,11 @@ if __name__ == "__main__":
     # test equally spaced edge sample
     # P = nx.MultiDiGraph(taxicab((11, 1)))
     # plt.figure()
-    # for j, pos in enumerate(equally_spaced_edge_position_sample(P, 50, 'dist').values()):
+    # for j, pos in enumerate(equally_spaced_edge_position_sample(P, 50, 'length').values()):
     #     plt.plot(j+pos, np.zeros_like(pos), 'o')
     # plt.show()
     Nsamples = 400
-    edge_pos = equally_spaced_edge_position_sample(nx.MultiDiGraph(G), Nsamples, 'dist')
+    edge_pos = equally_spaced_edge_position_sample(nx.MultiDiGraph(G), Nsamples, 'length')
     node_pos = nx.get_node_attributes(G, 'pos')
     plt.figure()
     plt.axis("equal")
