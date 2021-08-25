@@ -47,7 +47,7 @@ def get_total_volume(G, weight):
 
     return np.sum(oneway * w + 0.5 * ~oneway * w)
 
-def growth_rate_at_node(G, A, weight):
+def growth_rate_at_node(G, A, weight, speed_key='speed_kph', speed_unit='kph'):
     """
     Get the volume growth rate at node A of network G.
 
@@ -60,7 +60,11 @@ def growth_rate_at_node(G, A, weight):
     A : int
         Node ID
     weight : string
-        Edge weight whose volume growth in calculated.
+        Travel time edge weight.
+    speed_key : string, optional
+        Name of edge speed attribute.
+    speed_unit : string, optional
+        Units of the speed attribute.
 
     Returns
     -------
@@ -71,12 +75,19 @@ def growth_rate_at_node(G, A, weight):
     # calculate shortest path lengths
     distfromA = dict(nx.shortest_path_length(G, source=A, weight=weight))
 
+    # unit conversion for speeds
+    conv_factor = 1
+    if speed_unit == "kph":
+        conv_factor /= 3.6
+
     # build array of left and right borders of ramp-like functions
     left = []
     right = []
+    speeds = []
     for u, v, k, ddict in G.edges(data=True, keys=True):
         du = distfromA[u]
         w = ddict[weight]
+        speeds.append(ddict[speed_key])
         if ddict['oneway']:
             left.append(du)
             right.append(du + w)
@@ -88,14 +99,16 @@ def growth_rate_at_node(G, A, weight):
     times = np.sort(np.unique(left+right))
     left = np.array(left)
     right = np.array(right)
+    speeds = np.array(speeds) * conv_factor
     t = np.expand_dims(times, axis=-1)
-    rates = np.sum(boxcar(t, left, right), axis=-1)
+    rates = np.sum(boxcar(t, left, right) * speeds, axis=-1)
     coeffs = np.array([np.zeros_like(rates), rates])
     breakpoints = np.concatenate((times, [times[-1]+1]))
 
     return PPoly(coeffs, breakpoints)
 
-def growth_rate_at_edge_positions(G, edge, positions, weight):
+def growth_rate_at_edge_positions(G, edge, positions, weight,
+                                  speed_key='speed_kph', speed_unit='kph'):
     """
     Get the volume growth rate at edge positions of network G.
 
@@ -110,16 +123,26 @@ def growth_rate_at_edge_positions(G, edge, positions, weight):
     positions : ndarray, 1-D
         The positions along edge, represented as float in [0,1].
     weight : string
-        Edge weight whose volume growth rate is calculated.
+        Travel time edge weight.
+    speed_key : string, optional
+        Name of edge speed attribute.
+    speed_unit : string, optional
+        Units of the speed attribute.
 
     Returns
     -------
     rates : list of scipy.interpolate.PPoly
         The volume growth rates as piecewise constant functions.
+        Units are meters per [weight].
     """
     edge_data = G.get_edge_data(*edge)
     A = edge[0]
     B = edge[1]
+
+    # unit conversion for speeds
+    conv_factor = 1
+    if speed_unit == "kph":
+        conv_factor /= 3.6
 
     # calculate shortest path lengths
     distfromB = dict(nx.shortest_path_length(G, source=B, weight=weight))
@@ -128,6 +151,7 @@ def growth_rate_at_edge_positions(G, edge, positions, weight):
     # build array of left and right borders of ramp-like functions
     left = []
     right = []
+    speeds = []
     if edge_data['oneway']:
         for u, v, k, ddict in G.edges(data=True, keys=True):
             du = distfromB[u] + wAB*(1-positions)
@@ -136,16 +160,20 @@ def growth_rate_at_edge_positions(G, edge, positions, weight):
                 if ddict['oneway']:
                     left.append(du)
                     right.append(du + w)
+                    speeds.append(ddict[speed_key])
                 else:
                     dv = distfromB[v] + wAB*(1-positions)
                     dmax = 0.5 * (du + dv + w)
                     left.append(du)
                     right.append(dmax)
+                    speeds.append(ddict[speed_key])
             else:
                 left.append(np.zeros_like(positions))
                 right.append(wAB*(1-positions))
+                speeds.append(ddict[speed_key])
                 left.append(du)
                 right.append(distfromB[A]+np.ones_like(positions)*wAB)
+                speeds.append(ddict[speed_key])
     else:
         distfromA = dict(nx.shortest_path_length(G, source=A, weight=weight))
         for u, v, k, ddict in G.edges(data=True, keys=True):
@@ -157,32 +185,38 @@ def growth_rate_at_edge_positions(G, edge, positions, weight):
                 if ddict['oneway']:
                     left.append(du)
                     right.append(du + w)
+                    speeds.append(ddict[speed_key])
                 else:
                     dv = np.minimum(distfromA[v] + wAB*positions,
                             distfromB[v] + wAB*(1-positions))
                     dmax = 0.5 * (du + dv + w)
                     left.append(du)
                     right.append(dmax)
+                    speeds.append(ddict[speed_key])
         left.append(np.zeros_like(positions))
         left.append(np.zeros_like(positions))
         right.append(wAB*positions)
         right.append(wAB*(1-positions))
+        speeds.append(edge_data[speed_key])
+        speeds.append(edge_data[speed_key])
     interpolators = []
     left = np.array(left)
     right = np.array(right)
+    speeds = np.array(speeds) * conv_factor
     for j in range(positions.size):
         l = left[:,j]
         r = right[:,j]
         times = np.sort(np.unique(np.concatenate((l,r))))
         t = np.expand_dims(times, axis=-1)
-        rates = np.sum(boxcar(t, l, r), axis=-1)
+        rates = np.sum(boxcar(t, l, r) * speeds, axis=-1)
         coeffs = np.array([np.zeros_like(rates), rates])
         breakpoints = np.concatenate((times, [times[-1]+1]))
         interpolators.append(PPoly(coeffs, breakpoints))
 
     return interpolators
 
-def volume_growth(G, weight, Npos, pos_weight=None):
+def volume_growth(G, weight, Npos, pos_weight=None,
+                  speed_key='speed_kph', speed_unit='kph'):
     """
     Do a volume growth analysis of a network.
 
@@ -191,17 +225,22 @@ def volume_growth(G, weight, Npos, pos_weight=None):
     G : networkx.MultiDiGraph
         The network. Must have a `oneway` edge attribute.
     weight : string
-        The edge weight whose volume growth in calculated.
+        Travel time edge weight.
     Npos : int
         The number of edge positions for which to calculate volume growth.
     pos_weight : str, optional
         The edge weight used for the equally spaced edge position sample.
         If `pos_weight=None`, the `weight` is used.
+    speed_key : string, optional
+        Name of edge speed attribute.
+    speed_unit : string, optional
+        Units of the speed attribute.
 
     Returns
     -------
     rates : list of scipy.interpolate.PPoly
         The volume growth rates as piecewise constant functions.
+        Units are meters per [weight].
     """
     # get edge positions
     w = weight if pos_weight is None else pos_weight
@@ -210,7 +249,7 @@ def volume_growth(G, weight, Npos, pos_weight=None):
     # set up multiprocessing
     cpus = mp.cpu_count() - 1
     pool = mp.Pool(cpus)
-    params = [(G, edge, pos, weight) for edge, pos in edge_pos.items()]
+    params = [(G, edge, pos, weight, speed_key, speed_unit) for edge, pos in edge_pos.items()]
     sma = pool.starmap_async(growth_rate_at_edge_positions, params)
     results = sma.get()
     pool.close()
