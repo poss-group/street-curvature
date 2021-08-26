@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.interpolate import PPoly, interp1d
 from scipy.optimize import curve_fit
+from scipy.stats import linregress
 import networkx as nx
 import multiprocessing as mp
 from utils_network import equally_spaced_edge_position_sample
@@ -294,6 +295,75 @@ def get_mean_volume_interpolant(G, weight, Npos, Ninter, pos_weight=None,
     v = np.average([r.antiderivative()(t)/A for r in rates],
                    axis=0)
     return interp1d(t, v, bounds_error=False, fill_value=(0, 1))
+
+def get_scaling(F):
+    """
+    Get scaling parameters from a mean volume interpolant.
+
+    Parameters
+    ----------
+    F : scipy.interpolate.interp1d
+        The mean volume growth interpolator.
+        Units are normalized to the total edge length.
+
+    Returns
+    -------
+    nu : float
+        The effective dimension.
+    c : float
+        The power law coefficient.
+
+    Notes
+    -----
+    The fit minimizes the residuals ``F.y - cu * F.x ** nu``.
+    """
+    # first obtain exponent
+    y = np.log(F.y[1:])
+    x = np.log(F.x[1:])
+    grad = np.gradient(y, x)
+    nu = np.amax(grad)
+
+    # then fit power law (scaling x axis to [0,1])
+    stop = np.argmax(grad)+1
+    t = F.x[:stop]
+    v = F.y[:stop]
+    func = lambda x, c: c * x**nu
+    popt, _ = curve_fit(func, t/t[-1], v)
+
+    return nu, popt[0]/(t[-1]**nu)
+
+def get_scaling_variant(F):
+    """
+    Get scaling parameters from a mean volume interpolant.
+
+    Parameters
+    ----------
+    F : scipy.interpolate.interp1d
+        The mean volume growth interpolator.
+        Units are normalized to the total edge length.
+
+    Returns
+    -------
+    nu : float
+        The effective dimension.
+    c : float
+        The power law coefficient.
+
+    Notes
+    -----
+    The fit minimizes the residuals ``F.y - cu * F.x ** nu``.
+    """
+    # first obtain exponent
+    y = np.log(F.y[1:])
+    x = np.log(F.x[1:])
+    grad = np.gradient(y, x)
+    nu = np.amax(grad)
+    region = (nu-grad)/nu < 0.1
+
+    # then fit a line on a loglog plot
+    fit = linregress(x[region], y[region])
+
+    return fit.slope, np.exp(fit.intercept)
 
 def power_fit(rates, Nsamples=1000, max_rate=0.5, weights=None):
     """
