@@ -4,6 +4,7 @@ from scipy.stats import rv_continuous
 from scipy.interpolate import CubicHermiteSpline, interp1d
 from volume_growth import *
 from scipy.optimize import newton, least_squares, brentq
+from scipy.integrate import quad
 
 def poly_convolve(A, B):
     """
@@ -93,25 +94,21 @@ def inverse_wlc(r, lp):
     f2 = lambda t: 2*np.exp(-t/lp)
     return newton(f, r**2, fprime=f1, fprime2=f2)
 
-def lsq_quantile_fit(wt_data, RV, N, Ninter, q='all', truncate=None):
-    # sample model CDF for interpolation
-    if truncate is None:
-        t = np.linspace(0, RV.tmax, Ninter)
-        cdf = RV.cdf(t, N)
-    else:
-        t = np.linspace(0, truncate, Ninter)
-        cdf = RV.cdf(t, N)
-        cdf /= cdf[-1]
-
+def lsq_quantile_fit(wt_data, F, N, t0, q='all', truncate=None):
     # data quantiles: sorted array
     if q == 'all':
         data_quantiles = np.sort(wt_data)
         n = wt_data.size
-        model_quantiles = np.interp(np.arange(1, n+1)/n, cdf, t)
+        qvec = np.arange(1, n+1) / n
 
     else:
         data_quantiles = np.quantile(wt_data, q)
-        model_quantiles = np.interp(q, cdf, t)
+        qvec = q
+
+    # model quantiles
+    if truncate is not None:
+        qvec = qvec * (1 - (1-F(truncate*t0))**N)
+    model_quantiles = np.interp(1-(1-qvec)**(1/N), F.y, F.x)
 
     # # only retain positive quantiles
     # mask = data_quantiles > 0
@@ -130,7 +127,7 @@ def lsq_quantile_fit(wt_data, RV, N, Ninter, q='all', truncate=None):
     # x0 = newton(lambda tp : np.sqrt(wlc(med, tp))-model_median,
     #             np.mean(wt_data),
     #             fprime = lambda tp : wlc_derivative_wrt_lp(med, tp))
-    x0 = RV.t0 / 2
+    x0 = t0**2 / np.mean(wt_data)
 
     return least_squares(f, x0, jac=jac, method='lm'), data_quantiles, model_quantiles
 
@@ -438,8 +435,29 @@ def MLE_2par_weibull(x):
 
     return nu, b
 
+def KL_base2inf(F, N):
+    """
+    """
+    # calculate scaling
+    nu, c = get_scaling(F)
 
+    # get derivative of F
+    Fprime = get_interp_derivative(F)
 
+    # first part (analytical)
+    part1 = np.log(c*nu) - (N-1) / N
+
+    # second part (numerically)
+    part2 = np.zeros(N.size)
+    def func(v, n):
+        t = np.interp(1-v, F.y, F.x)
+        return v**(n-1) * (np.log(Fprime(t))
+                           - (nu-1) * np.log(t)
+                           + n * c * t**nu)
+    for j, n in enumerate(N):
+        part2[j] = quad(func, 0, 1, args=(n,))[0]
+
+    return part1 + N*part2
 
 # no need to implement this, it is a Weibull distribution
 # class MFT_minimal(rv_continuous):
@@ -475,6 +493,7 @@ if __name__ == "__main__":
     G = ox.graph_from_place("Broitzem", network_type="drive")
     prepare_graph(G)
     A = np.sum([w for u, v, w in G.to_undirected().edges(data='travel_time')])
+    F = get_mean_volume_interpolant(G, 'travel_time', 500, 2000, pos_weight='length')
     Nsamples = 200
     edge_pos = equally_spaced_edge_position_sample(G, Nsamples, 'length')
     rates = []
@@ -519,10 +538,27 @@ if __name__ == "__main__":
     # plt.plot(x, x, 'k--')
     # plt.show()
 
-    # test creation of MFT RV
-    RV = MFT_minimal()
-    print(RV.a)
-    t = np.linspace(0, 5, 300)
-    plt.figure()
-    plt.plot(t, RV.pdf(t, 1, 2))
+    # # test creation of MFT RV
+    # RV = MFT_minimal()
+    # print(RV.a)
+    # t = np.linspace(0, 5, 300)
+    # plt.figure()
+    # plt.plot(t, RV.pdf(t, 1, 2))
+    # plt.show()
+
+    # # test interpolant differentiation
+    # A = get_total_volume(G, 'length')
+    # rates = volume_growth(G, 'travel_time', 500, pos_weight='length')
+    # Fprime = get_interp_derivative(F)
+    # t = np.linspace(0, F.x[-1], 300)
+    # plt.plot(t, Fprime(t), label="from interpolant")
+    # mean_r = np.mean([r(t)/A for r in rates], axis=0)
+    # plt.plot(t, mean_r, label="directly")
+    # plt.legend()
+    # plt.show()
+
+    # test KL divergence
+    N = np.arange(1, 20)
+    KL = KL_base2inf(F, N)
+    plt.plot(N, KL, 'o-')
     plt.show()

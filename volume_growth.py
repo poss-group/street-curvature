@@ -296,6 +296,25 @@ def get_mean_volume_interpolant(G, weight, Npos, Ninter, pos_weight=None,
                    axis=0)
     return interp1d(t, v, bounds_error=False, fill_value=(0, 1))
 
+def get_interp_derivative(F):
+    """
+    Get the derivative of a mean volume growth curve.
+
+    Parameters
+    ----------
+    F : scipy.interpolate.interp1d
+        The mean volume growth interpolator.
+        Units are normalized to the total edge length.
+
+    Returns
+    -------
+    Fprime : scipy.interpolate.interp1d
+        The mean volume growth rate interpolator.
+        Units are [time]^-1.
+    """
+    rate = np.gradient(F.y, F.x)
+    return interp1d(F.x, rate, bounds_error=False, fill_value=(0, 0))
+
 def get_scaling(F):
     """
     Get scaling parameters from a mean volume interpolant.
