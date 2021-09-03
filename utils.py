@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.spatial import Delaunay, Voronoi
 from shapely.geometry import Polygon, Point
+import geopandas as gpd
 
 def heron(a, b, c):
     """
@@ -578,3 +579,10 @@ def data_cdf(data):
     n = x.size
     y = np.arange(1, n+1) / n
     return x, y
+
+def project_to_UTM(points):
+    gs = gpd.GeoSeries(data=[Point(p) for p in points],
+                           crs="EPSG:4326")
+    proj_gs = gs.to_crs("EPSG:32633")
+
+    return np.array([[P.x, P.y] for P in proj_gs])

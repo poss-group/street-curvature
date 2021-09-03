@@ -345,6 +345,7 @@ def RV_base(G, weight, Npos, Ninter, pos_weight=None, weights=None):
     """
     F = get_mean_volume_interpolant(G, weight, Npos,
                                     Ninter, pos_weight=pos_weight)
+    Fprime = get_interp_derivative(F)
 
     class base_model(rv_continuous):
         def __init__(self, **kwargs):
@@ -354,7 +355,44 @@ def RV_base(G, weight, Npos, Ninter, pos_weight=None, weights=None):
         def _cdf(self, t, N):
             return 1 - (1-F(t))**N
 
+        def _sf(self, t, N):
+            return (1-F(t))**N
+
+        def _pdf(self, t, N):
+            return N * (1-F(t))**(N-1) * Fprime(t)
+
+        def _ppf(self, q, N):
+            return np.interp(1-(1-q)**(1/N), F.y, F.x)
+
+        def _logpdf(self, t, N):
+            return (np.log(N)+(N-1)*np.log(1-F(t))
+                    +np.log(Fprime(t)))
+
     return base_model(a=0, b=F.x[-1])
+
+def RV_WLC_interp(F):
+    Fprime = get_interp_derivative(F)
+
+    class WLC_model(rv_continuous):
+        def __init__(self, **kwargs):
+            self.tmax = F.x[-1]
+            super().__init__(**kwargs)
+
+        def _get_support(self, N, tp):
+            a = 0
+            b = inverse_wlc(self.tmax, tp)
+            return a, b
+
+        def _cdf(self, t, N, tp):
+            T = np.sqrt(wlc(t, tp))
+            return 1 - (1-F(T))**N
+
+        def _pdf(self, t, N, tp):
+            T = np.sqrt(wlc(t, tp))
+            return N * (1-F(T))**(N-1) * Fprime(T) * (tp/T) * (1 - np.exp(-(t/tp)))
+
+    RV = WLC_model(momtype=0)
+    return RV
 
 
 def RV_WLC(rates, weights=None):
