@@ -131,6 +131,45 @@ def lsq_quantile_fit(wt_data, F, N, t0, q='all', truncate=None):
 
     return least_squares(f, x0, jac=jac, method='lm'), data_quantiles, model_quantiles
 
+def lsq_quantile_fit_extension(wt_data, F, N, t0, q='all', truncate=None):
+    # data quantiles: sorted array
+    if q == 'all':
+        data_quantiles = np.sort(wt_data)
+        n = wt_data.size
+        qvec = np.arange(1, n+1) / n
+
+    else:
+        data_quantiles = np.quantile(wt_data, q)
+        qvec = q
+
+    # model quantiles
+    if truncate is not None:
+        qvec = qvec * (1 - (1-F(truncate*t0))**N)
+    model_quantiles = np.interp(1-(1-qvec)**(1/N), F.y, F.x)
+
+    # # only retain positive quantiles
+    # mask = data_quantiles > 0
+    # positive_quantiles = data_quantiles[mask]
+    # npositive = np.argmax(mask)
+
+    # set up residual function and its Jacobian
+    def f(mu):
+        return np.sqrt(wlc(data_quantiles, 1/mu)) - model_quantiles
+    def jac(mu):
+        return (wlc_derivative_wrt_lp(data_quantiles, 1/mu)
+                * (-1/mu**2) )[:,np.newaxis]
+
+    # intial guess: tp that matches medians
+    # model_median = np.interp(0.5, cdf, t)
+    # med = np.median(wt_data)
+    # x0 = newton(lambda tp : np.sqrt(wlc(med, tp))-model_median,
+    #             np.mean(wt_data),
+    #             fprime = lambda tp : wlc_derivative_wrt_lp(med, tp))
+    x0 = np.mean(wt_data) / t0**2
+
+    return least_squares(f, x0, jac=jac, method='lm'), data_quantiles, model_quantiles
+
+
 def get_upper_limit(tmax, tp):
     f = lambda t : wlc(t, tp) - tmax**2
     fprime = lambda t : 2*tp*(1-np.exp(-t/tp))
