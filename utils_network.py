@@ -198,7 +198,7 @@ def get_circles(G, center, radii, weight):
 
     Parameters
     ----------
-    G : networkx.Graph
+    G : networkx.MultiDiGraph
         The network
     center : node identifier
         The center around which to construct the circles.
@@ -212,38 +212,31 @@ def get_circles(G, center, radii, weight):
     -------
     circles : list of tuples
         Circles as a lists of points on edges, which are represented
-        tuples (u, v, ell) of the edge vertices u and v and the linear
-        referencing distance ell.
+        tuples (u, v, k, ell) of the edge vertices u and v, edge key k,
+        and the linear referencing distance ell.
     """
     # calculate shortest path lengths to center
     dist = pd.Series(nx.shortest_path_length(G, source=center, weight=weight))
 
     # get edge data
-    u, v, w = zip(*G.edges(data=True))
+    u, v, k, ddict = zip(*G.edges(data=True, keys=True))
     u = np.array(u)
     v = np.array(v)
-    w = np.array([item[weight] for item in w])
+    k = np.array(k)
+    w = np.array(list(item[weight] for item in ddict))
     du = np.array(dist[u])
     dv = np.array(dist[v])
-    dmin = np.minimum(du, dv)
-    dmax = np.maximum(du, dv)
-    dmaxB = 0.5 * (du + dv + w)
-    start = u * (du < dv) + v * (du >= dv)
-    end = v * (du < dv) + u * (du >= dv)
+    oneway = np.array(list(item['oneway'] for item in ddict))
+    left = du
+    right = (du+w)*oneway + 0.5 * (du+dv+w) * ~oneway
 
     # loop through radii
     circles = []
     for R in radii:
-        l1 = R - dmin
-        l2 = dmax - dmin + w - l1
-        mask1 = dmin < R
-        mask2 = dmax >= R
-        mask3 = dmaxB >= R
-        typeA = mask1 * mask2
-        typeB = mask1 * ~mask2 * mask3
-        circles.append(list(zip(start[typeA], end[typeA],
-                                np.array([l1[typeA]]).T)) +
-                       list(zip(start[typeB], end[typeB], np.array([l1[typeB], l2[typeB]]).T)))
+        has_point = (left <= R) * (right > R)
+        ell = R-left
+        circles.append(list(zip(u[has_point], v[has_point],
+                                k[has_point], ell[has_point])))
 
     return circles
 
