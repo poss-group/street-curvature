@@ -634,8 +634,16 @@ if __name__ == "__main__":
     # plt.legend()
     # plt.show()
 
-    # test KL divergence
-    N = np.arange(1, 20)
-    KL = KL_base2inf(F, N)
-    plt.plot(N, KL, 'o-')
+    # # test KL divergence
+    # N = np.arange(1, 20)
+    # KL = KL_base2inf(F, N)
+    # plt.plot(N, KL, 'o-')
+    # plt.show()
+
+    # test WLC inversion for negative lp
+    r = np.linspace(0.1, 10, 100)
+    mu = -1
+    lp = 1 / mu
+    L = inverse_wlc(r, lp)
+    plt.scatter(r, np.sqrt(wlc(L, lp)).flatten())
     plt.show()
