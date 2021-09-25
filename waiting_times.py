@@ -1,9 +1,10 @@
 import numpy as np
 from utils_network import *
+from utils import data_cdf
 from scipy.stats import rv_continuous
 from scipy.interpolate import CubicHermiteSpline, interp1d
 from volume_growth import *
-from scipy.optimize import newton, least_squares, brentq
+from scipy.optimize import newton, least_squares, brentq, curve_fit
 from scipy.integrate import quad
 
 def poly_convolve(A, B):
@@ -169,6 +170,13 @@ def lsq_quantile_fit_extension(wt_data, F, N, t0, q='all', truncate=None):
 
     return least_squares(f, x0, jac=jac, method='lm'), data_quantiles, model_quantiles
 
+def cdf_fit_extension(wt, F, N):
+    def modelCDF(t, mu):
+        T = np.sqrt(wlc(t, 1/mu))
+        return 1 - (1 - F(T))**N
+    t, cdf = data_cdf(wt)
+
+    return curve_fit(modelCDF, t, cdf)
 
 def get_upper_limit(tmax, tp):
     f = lambda t : wlc(t, tp) - tmax**2
