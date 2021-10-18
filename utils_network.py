@@ -153,6 +153,61 @@ def equally_spaced_edge_position_sample(G, Nsamples, weight):
 
     return edge_positions
 
+def uniform_edge_positions_sample(G, Nsamples, weight):
+    """
+    Sample equally spaced positions on the (undirected)
+    edges of G.
+
+    Parameters
+    ----------
+    G : nx.networkx.MultiDiGraph
+       The network, must allow directed and multi-edges.
+    Nsamples : int
+        Number of samples.
+    weight : string
+        Edge weight
+
+    Returns
+    -------
+    edge_positions : dict
+        Dictionary of edge positions keyed by edge, with 1-D ndarrays
+        as values.
+
+    Notes
+    -----
+    The sample is uniform on the directed edges of G, so that opposite
+    edges are not oversampled.
+    """
+    oneway = np.array(list(nx.get_edge_attributes(G, 'oneway').values()))
+    u, v, k, w = zip(*G.edges(data=weight, keys=True))
+    u = np.array(u)
+    v = np.array(v)
+    mask = np.logical_or(oneway, u < v) # avoid double counting of two-way edges
+    k = np.array(k)[mask]
+    w = np.array(w)[mask]
+    u = u[mask]
+    v = v[mask]
+    bins = np.cumsum(w)
+    L = bins[-1]
+
+    # take sample and find edges and positions
+    x = np.random.random(Nsamples) * L
+    x_indices = np.digitize(x, bins)
+    x_positions = (x - bins[x_indices-1]) % L
+
+    # collect positions for each edge
+    edge_positions = {}
+    for idx in np.unique(x_indices):
+        mask = x_indices == idx
+        positions = x_positions[mask] / w[idx]
+        key = (u[idx], v[idx], k[idx])
+        if not G.has_edge(*key):
+            # wrong edge direction
+            key = (v[idx], u[idx], k[idx])
+        edge_positions[key] = positions
+
+    return edge_positions
+
 def subdivide_edge(G, u, v, positions_on_edge, weight):
     """
     Subdivide edge between u and v at specified positions.

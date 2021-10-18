@@ -4,7 +4,7 @@ from scipy.optimize import curve_fit
 from scipy.stats import linregress
 import networkx as nx
 import multiprocessing as mp
-from utils_network import equally_spaced_edge_position_sample
+from utils_network import equally_spaced_edge_position_sample, uniform_edge_positions_sample
 
 def boxcar(t, left, right):
     """
@@ -217,7 +217,8 @@ def growth_rate_at_edge_positions(G, edge, positions, weight,
     return interpolators
 
 def volume_growth(G, weight, Npos, pos_weight=None,
-                  speed_key='speed_kph', speed_unit='kph'):
+                  speed_key='speed_kph', speed_unit='kph',
+                  sample_func=equally_spaced_edge_position_sample):
     """
     Do a volume growth analysis of a network.
 
@@ -245,7 +246,7 @@ def volume_growth(G, weight, Npos, pos_weight=None,
     """
     # get edge positions
     w = weight if pos_weight is None else pos_weight
-    edge_pos = equally_spaced_edge_position_sample(G, Npos, w)
+    edge_pos = sample_func(G, Npos, w)
 
     # set up multiprocessing
     cpus = mp.cpu_count() - 1
